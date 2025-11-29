@@ -1,392 +1,205 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Finanças</title>
+import React, { useState, useEffect, useMemo } from 'react';
+import { Wallet, PencilSimple, ArrowCircleUp, ArrowCircleDown, House, ShoppingCart, Lightning, Drop, Car, ForkKnife, DotsThreeOutline } from 'phosphor-react';
 
-    <!-- CONFIGURAÇÕES DE APP IOS (PWA) -->
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Finanças">
-    <link rel="apple-touch-icon" href="https://img.icons8.com/ios-filled/180/4a90e2/wallet.png">
-    
-    <!-- TAILWIND CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- LEITOR DE CSV (Para ler a planilha) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+const App = () => {
+  const [activeTab, setActiveTab] = useState('wallet');
+  
+  // Estado inicial simulando os dados da imagem
+  // Formato: Nome, Descrição (opcional), Valor, Categoria, Status
+  const [rawData, setRawData] = useState(`Feira, Roça, 650.00, Comida, Pendente
+Energia + Agua, 300.00, Casa, Pendente
+Aluguel, 200.00, Casa, Pendente
+Internet, 100.00, Casa, Pago
+Uber, Trabalho, 25.90, Transporte, Pago`);
 
-    <!-- ICONS (PHOSPHOR) -->
-    <script src="https://unpkg.com/@phosphor-icons/web"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  // Função inteligente para processar as linhas CSV
+  const transactions = useMemo(() => {
+    return rawData.split('\n').filter(line => line.trim().length > 0).map((line, index) => {
+      const parts = line.split(',').map(p => p.trim());
+      
+      // Tenta identificar os campos baseados na posição e conteúdo
+      let title = parts[0] || "Sem Nome";
+      let amount = 0;
+      let category = "Geral";
+      let status = "Pendente";
+      let description = "";
 
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #F2F2F7;
-            -webkit-user-select: none;
-            user-select: none;
-            -webkit-tap-highlight-color: transparent;
-            padding-top: env(safe-area-inset-top);
-            padding-bottom: env(safe-area-inset-bottom);
+      // Estratégia de parsing simples:
+      // Procura onde está o número (valor)
+      const amountIndex = parts.findIndex(p => !isNaN(parseFloat(p)) && p.trim() !== '');
+      
+      if (amountIndex !== -1) {
+        amount = parseFloat(parts[amountIndex]);
+        // Se houver texto entre o título e o valor, é descrição
+        if (amountIndex > 1) {
+            description = parts.slice(1, amountIndex).join(' ');
         }
-        .glass-effect {
-            background: rgba(255, 255, 255, 0.85);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-        }
-        .ios-card {
-            background: #FFFFFF;
-            border-radius: 16px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);
-        }
-        .check-anim { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
-        .paid-item { opacity: 0.5; filter: grayscale(1); }
-        .hide-scroll::-webkit-scrollbar { display: none; }
-        .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
-        
-        /* Spinner de Carregamento */
-        .loader {
-            border: 3px solid #e5e7eb;
-            border-radius: 50%;
-            border-top: 3px solid #3b82f6;
-            width: 24px;
-            height: 24px;
-            -webkit-animation: spin 1s linear infinite; /* Safari */
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    </style>
-</head>
-<body class="flex flex-col h-screen overflow-hidden">
+        // O que vem depois do valor geralmente é Categoria e Status
+        if (parts[amountIndex + 1]) category = parts[amountIndex + 1];
+        if (parts[amountIndex + 2]) status = parts[amountIndex + 2];
+      } else {
+        // Fallback se não achar número
+        if (parts[1]) amount = parseFloat(parts[1]) || 0;
+        if (parts[2]) category = parts[2];
+        if (parts[3]) status = parts[3];
+      }
 
-    <!-- HEADER -->
-    <header class="glass-effect fixed top-0 w-full z-50 pt-[calc(env(safe-area-inset-top)+10px)] pb-3 px-5 transition-all duration-300" id="main-header">
-        <div class="flex justify-between items-center">
-            <div>
-                <h1 class="text-[28px] font-bold tracking-tight text-black leading-tight">Finanças</h1>
-                <p id="month-label" class="text-sm text-gray-500 font-medium">Sincronizando...</p>
-            </div>
-            <div onclick="reloadData()" class="bg-gray-200/50 p-2 rounded-full cursor-pointer hover:bg-gray-300 transition active:scale-90">
-                <i class="ph-bold ph-arrows-clockwise text-xl text-gray-600"></i>
-            </div>
+      return { id: index, title, description, amount, category, status };
+    });
+  }, [rawData]);
+
+  const totalPendente = transactions
+    .filter(t => t.status.toLowerCase().includes('pendente'))
+    .reduce((acc, curr) => acc + curr.amount, 0);
+
+  const totalGeral = transactions.reduce((acc, curr) => acc + curr.amount, 0);
+
+  const formatCurrency = (value) => {
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+  };
+
+  // Helper para ícones baseados na categoria
+  const getIcon = (category) => {
+    const catLower = category.toLowerCase();
+    if (catLower.includes('casa') || catLower.includes('aluguel')) return <House size={24} weight="fill" className="text-blue-500" />;
+    if (catLower.includes('comida') || catLower.includes('feira') || catLower.includes('mercado')) return <ShoppingCart size={24} weight="fill" className="text-orange-500" />;
+    if (catLower.includes('energia') || catLower.includes('luz')) return <Lightning size={24} weight="fill" className="text-yellow-500" />;
+    if (catLower.includes('agua')) return <Drop size={24} weight="fill" className="text-blue-400" />;
+    if (catLower.includes('transporte') || catLower.includes('uber')) return <Car size={24} weight="fill" className="text-gray-500" />;
+    if (catLower.includes('restaurante')) return <ForkKnife size={24} weight="fill" className="text-red-400" />;
+    return <DotsThreeOutline size={24} weight="fill" className="text-gray-400" />;
+  };
+
+  return (
+    <div className="bg-gray-50 min-h-screen font-sans text-slate-800 pb-20 selection:bg-blue-100">
+      
+      {/* HEADER */}
+      <div className="px-6 pt-12 pb-4 flex justify-between items-center bg-white sticky top-0 z-10 shadow-sm">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Finanças</h1>
+          <p className="text-sm text-slate-400 font-medium">Atualizado agora</p>
         </div>
-    </header>
+        <button className="bg-slate-100 p-2 rounded-full hover:bg-slate-200 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-600"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16l5 5v-5"/></svg>
+        </button>
+      </div>
 
-    <!-- CONTEÚDO -->
-    <main class="flex-1 overflow-y-auto pt-[100px] pb-28 px-5 hide-scroll relative" id="content-area">
-        
-        <!-- LOADING STATE -->
-        <div id="loading-screen" class="flex flex-col items-center justify-center py-10 transition-opacity duration-500">
-            <div class="loader mb-4"></div>
-            <p class="text-gray-400 text-sm">Buscando na planilha...</p>
-        </div>
-
-        <div id="app-content" class="hidden opacity-0 transition-opacity duration-500">
-            <!-- RESUMO -->
-            <div class="flex gap-4 overflow-x-auto hide-scroll pb-4 -mx-5 px-5 snap-x">
-                <!-- Pendente -->
-                <div class="min-w-[160px] h-[100px] bg-red-500 rounded-2xl p-4 text-white shadow-lg shadow-red-500/20 flex flex-col justify-between snap-start">
-                    <div class="flex items-center gap-2">
-                        <i class="ph-fill ph-warning-circle text-white/80"></i>
-                        <span class="text-xs font-bold uppercase tracking-wide opacity-90">Pendente</span>
-                    </div>
-                    <p id="total-pending" class="text-2xl font-bold tracking-tight">R$ 0,00</p>
-                </div>
-                <!-- Total -->
-                <div class="min-w-[150px] h-[100px] bg-white rounded-2xl p-4 border border-gray-100 flex flex-col justify-between shadow-sm snap-start">
-                     <div class="flex items-center gap-2">
-                        <i class="ph-fill ph-chart-pie-slice text-blue-500"></i>
-                        <span class="text-xs font-bold uppercase tracking-wide text-gray-400">Total</span>
-                    </div>
-                    <p id="total-general" class="text-xl font-bold text-gray-800">R$ 0,00</p>
-                </div>
+      {activeTab === 'wallet' ? (
+        <div className="px-6 space-y-8 animate-in fade-in duration-500">
+          
+          {/* CARDS RESUMO */}
+          <div className="flex gap-4 mt-4 overflow-x-auto pb-2 snap-x hide-scrollbar">
+            {/* Card Pendente */}
+            <div className="snap-center shrink-0 w-[48%] bg-red-500 rounded-2xl p-5 shadow-lg shadow-red-200 text-white relative overflow-hidden group">
+               <div className="absolute -right-4 -top-4 bg-white/10 w-24 h-24 rounded-full blur-xl group-hover:bg-white/20 transition-all"></div>
+               <div className="flex items-center gap-2 mb-6">
+                 <div className="bg-white/20 p-1 rounded-full"><ArrowCircleUp size={16} className="text-white" weight="bold"/></div>
+                 <span className="text-xs font-bold tracking-wider uppercase opacity-90">Pendente</span>
+               </div>
+               <div className="text-2xl font-bold">{formatCurrency(totalPendente)}</div>
             </div>
 
-            <!-- TÍTULO LISTA -->
-            <div class="flex justify-between items-end mt-4 mb-3">
-                <h2 class="text-lg font-bold text-gray-800">Suas Contas</h2>
-                <span id="items-count" class="text-xs font-medium text-gray-400 bg-gray-100 px-2 py-1 rounded-full">0 Itens</span>
+            {/* Card Total */}
+            <div className="snap-center shrink-0 w-[48%] bg-white rounded-2xl p-5 shadow-sm border border-slate-100 relative overflow-hidden">
+               <div className="flex items-center gap-2 mb-6">
+                 <div className="bg-blue-500/10 p-1 rounded-full"><ArrowCircleDown size={16} className="text-blue-600" weight="bold"/></div>
+                 <span className="text-xs font-bold tracking-wider uppercase text-slate-400">Total</span>
+               </div>
+               <div className="text-2xl font-bold text-slate-800">{formatCurrency(totalGeral)}</div>
             </div>
+          </div>
 
-            <!-- LISTA -->
-            <div class="space-y-3" id="payment-list">
-                <!-- Itens virão aqui -->
+          {/* LISTA CONTAS */}
+          <div>
+            <div className="flex justify-between items-end mb-4">
+                <h2 className="text-xl font-bold text-slate-800">Suas Contas</h2>
+                <span className="text-xs text-slate-400 font-medium">{transactions.length} Itens</span>
             </div>
             
-            <div class="h-10 text-center mt-8 opacity-30 pb-safe">
-                <i class="ph-fill ph-check-circle text-4xl text-gray-400"></i>
-            </div>
-        </div>
-
-        <!-- MENSAGEM DE ERRO (CASO PRIVADO) -->
-        <div id="error-message" class="hidden flex-col items-center justify-center py-10 text-center px-4">
-            <i class="ph-duotone ph-lock-key text-4xl text-red-400 mb-3"></i>
-            <h3 class="font-bold text-gray-800">Acesso Restrito</h3>
-            <p class="text-sm text-gray-500 mt-2">Não consegui ler sua planilha. Verifique se você mudou o compartilhamento para <strong>"Qualquer pessoa com o link"</strong>.</p>
-            <button onclick="window.location.reload()" class="mt-4 bg-blue-500 text-white px-6 py-2 rounded-full font-medium text-sm shadow-lg active:scale-95 transition">Tentar Novamente</button>
-        </div>
-
-    </main>
-
-    <!-- NAVEGAÇÃO -->
-    <nav class="bg-white/90 backdrop-blur-xl border-t border-gray-200 fixed bottom-0 left-0 right-0 pb-[env(safe-area-inset-bottom)] z-50">
-        <div class="flex justify-around items-center h-16 px-2">
-            <button class="flex flex-col items-center justify-center w-full h-full space-y-1 text-blue-600">
-                <i class="ph-fill ph-wallet text-2xl"></i>
-                <span class="text-[10px] font-semibold">Carteira</span>
-            </button>
-            <button onclick="window.open(SHEET_EDIT_URL, '_blank')" class="flex flex-col items-center justify-center w-full h-full space-y-1 text-gray-400 hover:text-gray-600">
-                <i class="ph-bold ph-pencil-simple text-2xl"></i>
-                <span class="text-[10px] font-medium">Editar Planilha</span>
-            </button>
-        </div>
-    </nav>
-
-    <script>
-        // ======================================================
-        // SEU LINK JÁ CONFIGURADO AQUI
-        // ======================================================
-        
-        const SHEET_ID = '1MmLntoCyuzTShPjR_qIeDQ6QvPMOI-sE4OPzyGaa5Og';
-        
-        // Link mágico que transforma a planilha em dados legíveis (CSV)
-        const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv`;
-        
-        // Link para quando você clicar em "Editar Planilha"
-        const SHEET_EDIT_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit`;
-
-        // ======================================================
-
-        const listElement = document.getElementById('payment-list');
-        const loadingScreen = document.getElementById('loading-screen');
-        const appContent = document.getElementById('app-content');
-        const errorMessage = document.getElementById('error-message');
-        
-        // Inicia
-        document.addEventListener('DOMContentLoaded', fetchData);
-
-        function reloadData() {
-            loadingScreen.classList.remove('hidden');
-            appContent.classList.add('hidden');
-            appContent.classList.remove('opacity-100');
-            errorMessage.classList.add('hidden');
-            fetchData();
-        }
-
-        function fetchData() {
-            Papa.parse(SHEET_URL, {
-                download: true,
-                header: true,
-                skipEmptyLines: true,
-                complete: function(results) {
-                    if (results.data && results.data.length > 0) {
-                        processData(results.data);
-                    } else {
-                        showError();
-                    }
-                },
-                error: function(err) {
-                    console.error("Erro:", err);
-                    showError();
-                }
-            });
-        }
-
-        function showError() {
-            loadingScreen.classList.add('hidden');
-            errorMessage.classList.remove('hidden');
-            errorMessage.classList.add('flex');
-        }
-
-        function processData(data) {
-            listElement.innerHTML = '';
-            let total = 0;
-            let pending = 0;
-            let count = 0;
-            let hasData = false;
-
-            // Recupera status salvo no celular
-            const localStatus = JSON.parse(localStorage.getItem('paymentStatus_v1') || '{}');
-
-            data.forEach((row, index) => {
-                // Tenta encontrar as colunas independente de maiuscula/minuscula
-                const keys = Object.keys(row);
-                const getVal = (keyName) => {
-                    const foundKey = keys.find(k => k.toLowerCase().trim() === keyName.toLowerCase());
-                    return foundKey ? row[foundKey] : '';
-                };
-
-                const nome = getVal('Nome');
-                const valorRaw = getVal('Valor');
-                const categoria = getVal('Categoria');
-                const statusPlanilha = getVal('Status');
-
-                if(!nome || !valorRaw) return;
-                hasData = true;
-
-                // Limpeza e conversão do valor monetário
-                // Aceita: "R$ 1.200,50", "1200.50", "1.200,00"
-                let cleanValue = valorRaw.toString();
-                
-                // Se tiver vírgula e ponto, assume padrão brasileiro (ponto separa milhar, virgula decimal)
-                if(cleanValue.includes(',') && cleanValue.includes('.')) {
-                     cleanValue = cleanValue.replace(/\./g, '').replace(',', '.');
-                } else if(cleanValue.includes(',')) {
-                    // Se só tem vírgula, é decimal
-                     cleanValue = cleanValue.replace(',', '.');
-                }
-                // Remove R$ e espaços
-                cleanValue = cleanValue.replace(/[^0-9.-]/g, '');
-                
-                let value = parseFloat(cleanValue);
-                if(isNaN(value)) value = 0;
-
-                // Lógica de Pagamento
-                const uniqueId = `${index}-${nome.replace(/\s/g, '')}`;
-                const isPaidLocally = localStatus[uniqueId];
-                
-                // Se status local existe, usa ele. Se não, usa planilha.
-                let isPaid = isPaidLocally !== undefined ? isPaidLocally : (statusPlanilha && statusPlanilha.toLowerCase().includes('pago'));
-
-                // Atualiza Totais
-                total += value;
-                if(!isPaid) pending += value;
-                count++;
-
-                // Cria o Card
-                const card = createCard(nome, categoria, value, isPaid, uniqueId);
-
-                // Ordenação: Pendentes no topo, Pagos no fundo
-                if(isPaid) listElement.appendChild(card);
-                else listElement.prepend(card);
-            });
-
-            if (!hasData) {
-                listElement.innerHTML = `<div class="text-center text-gray-400 py-10">Sua planilha parece vazia.<br>Adicione colunas: Nome, Valor, Categoria</div>`;
-            }
-
-            // Atualiza UI
-            updateHeaderUI(pending, total, count);
-            
-            // Transição suave
-            loadingScreen.classList.add('hidden');
-            appContent.classList.remove('hidden');
-            // Timeout pequeno para permitir renderização antes da opacidade
-            setTimeout(() => {
-                appContent.classList.remove('opacity-0');
-                appContent.classList.add('opacity-100');
-            }, 50);
-        }
-
-        function createCard(nome, categoria, value, isPaid, id) {
-            const card = document.createElement('div');
-            card.className = `ios-card p-4 flex items-center justify-between active:scale-[0.98] transition-transform duration-200 border-l-[6px] ${isPaid ? 'border-gray-200 paid-item' : 'border-red-500'} bill-item`;
-            card.setAttribute('data-id', id);
-            card.setAttribute('data-value', value);
-
-            card.innerHTML = `
-                <div class="flex items-center gap-4">
-                    <div class="w-10 h-10 rounded-full ${isPaid ? 'bg-gray-100 text-gray-400' : 'bg-blue-50 text-blue-500'} flex items-center justify-center transition-colors duration-300 icon-box">
-                        <i class="ph-fill ${getIcon(categoria)} text-xl"></i>
+            <div className="space-y-4">
+              {transactions.map((item) => (
+                <div key={item.id} className="bg-white p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] border border-slate-50 flex items-center justify-between group active:scale-[0.98] transition-all duration-200">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center border border-slate-100 group-hover:bg-blue-50 group-hover:border-blue-100 transition-colors">
+                      {getIcon(item.category)}
                     </div>
                     <div>
-                        <h3 class="font-bold text-gray-900 leading-tight">${nome}</h3>
-                        <p class="text-xs text-gray-400 mt-0.5">${categoria || 'Despesa'}</p>
+                      <h3 className="font-bold text-slate-800 leading-tight">{item.title}</h3>
+                      <div className="flex items-center gap-2 mt-1">
+                          <span className="text-xs font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md">
+                              {item.category}
+                          </span>
+                          {item.description && (
+                              <span className="text-xs text-slate-300 truncate max-w-[80px]">
+                                  {item.description}
+                              </span>
+                          )}
+                          {item.status.toLowerCase() === 'pendente' && (
+                              <span className="w-1.5 h-1.5 rounded-full bg-red-400"></span>
+                          )}
+                      </div>
                     </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="block font-bold text-slate-800">{formatCurrency(item.amount)}</span>
+                    <span className={`text-[10px] font-bold uppercase tracking-wide ${item.status.toLowerCase() === 'pendente' ? 'text-red-500' : 'text-green-500'}`}>
+                        {item.status}
+                    </span>
+                  </div>
                 </div>
-                <div class="flex flex-col items-end gap-1">
-                    <span class="font-bold text-gray-900">R$ ${value.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
-                    <button onclick="togglePay('${id}', this)" class="w-8 h-8 rounded-full border-[2px] ${isPaid ? 'bg-green-500 border-green-500' : 'border-gray-300'} flex items-center justify-center text-white transition-all duration-300 btn-check">
-                        <i class="ph-bold ph-check text-sm ${isPaid ? 'opacity-100 scale-100' : 'opacity-0 scale-50'} transition-all duration-300 icon-check"></i>
-                    </button>
-                </div>
-            `;
-            return card;
-        }
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="px-6 h-full flex flex-col animate-in slide-in-from-bottom-4 duration-300">
+            <h2 className="text-xl font-bold text-slate-800 mb-2 mt-4">Editar Dados</h2>
+            <p className="text-sm text-slate-500 mb-4">Edite sua planilha CSV aqui. Formato: Nome, Valor, Categoria, Status</p>
+            <div className="flex-1 mb-24">
+                <textarea 
+                    value={rawData}
+                    onChange={(e) => setRawData(e.target.value)}
+                    className="w-full h-[60vh] p-4 bg-white rounded-2xl border border-slate-200 shadow-sm text-sm font-mono text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-none leading-relaxed"
+                    spellCheck="false"
+                />
+            </div>
+        </div>
+      )}
 
-        function togglePay(id, btn) {
-            const card = btn.closest('.bill-item');
-            const iconCheck = btn.querySelector('.icon-check');
-            const iconBox = card.querySelector('.icon-box');
-            const isPaying = !btn.classList.contains('bg-green-500');
+      {/* BOTTOM NAVIGATION */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 px-6 py-4 pb-8 flex justify-around items-center z-50">
+        <button 
+          onClick={() => setActiveTab('wallet')}
+          className={`flex flex-col items-center gap-1 transition-colors ${activeTab === 'wallet' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
+        >
+          <Wallet size={24} weight={activeTab === 'wallet' ? "fill" : "regular"} />
+          <span className="text-[10px] font-bold">Carteira</span>
+        </button>
 
-            if (window.navigator && window.navigator.vibrate) window.navigator.vibrate(15);
+        <button 
+            className="bg-blue-600 rounded-full p-4 -mt-8 shadow-lg shadow-blue-300 hover:scale-105 active:scale-95 transition-all text-white border-4 border-gray-50"
+            onClick={() => {
+                // Ação de adicionar rápido (placeholder)
+                const newItem = "Nova Conta, 0.00, Geral, Pendente";
+                setRawData(prev => newItem + "\n" + prev);
+                setActiveTab('editor');
+            }}
+        >
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
 
-            // Salva Localmente
-            const localStatus = JSON.parse(localStorage.getItem('paymentStatus_v1') || '{}');
-            localStatus[id] = isPaying;
-            localStorage.setItem('paymentStatus_v1', JSON.stringify(localStatus));
+        <button 
+          onClick={() => setActiveTab('editor')}
+          className={`flex flex-col items-center gap-1 transition-colors ${activeTab === 'editor' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
+        >
+          <PencilSimple size={24} weight={activeTab === 'editor' ? "fill" : "regular"} />
+          <span className="text-[10px] font-bold">Planilha</span>
+        </button>
+      </div>
 
-            // Atualiza Visual
-            if(isPaying) {
-                // Pagando
-                btn.classList.remove('border-gray-300');
-                btn.classList.add('bg-green-500', 'border-green-500');
-                
-                iconCheck.classList.remove('opacity-0', 'scale-50');
-                iconCheck.classList.add('opacity-100', 'scale-100');
-                
-                card.classList.add('paid-item', 'border-gray-200');
-                card.classList.remove('border-red-500');
+    </div>
+  );
+};
 
-                iconBox.classList.remove('bg-blue-50', 'text-blue-500');
-                iconBox.classList.add('bg-gray-100', 'text-gray-400');
-                
-                listElement.appendChild(card); // Move para o fim
-            } else {
-                // Desfazendo
-                btn.classList.add('border-gray-300');
-                btn.classList.remove('bg-green-500', 'border-green-500');
-                
-                iconCheck.classList.add('opacity-0', 'scale-50');
-                iconCheck.classList.remove('opacity-100', 'scale-100');
-                
-                card.classList.remove('paid-item', 'border-gray-200');
-                card.classList.add('border-red-500');
-
-                iconBox.classList.add('bg-blue-50', 'text-blue-500');
-                iconBox.classList.remove('bg-gray-100', 'text-gray-400');
-
-                listElement.prepend(card); // Move para o topo
-            }
-
-            recalcTotals();
-        }
-
-        function recalcTotals() {
-            let pending = 0;
-            document.querySelectorAll('.bill-item').forEach(card => {
-                if(!card.classList.contains('paid-item')) {
-                    pending += parseFloat(card.getAttribute('data-value'));
-                }
-            });
-            // Animação simples do número
-            const el = document.getElementById('total-pending');
-            el.innerText = `R$ ${pending.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
-        }
-
-        function updateHeaderUI(pending, total, count) {
-            document.getElementById('total-pending').innerText = `R$ ${pending.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
-            document.getElementById('total-general').innerText = `R$ ${total.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
-            document.getElementById('items-count').innerText = `${count} Itens`;
-            document.getElementById('month-label').innerText = 'Atualizado agora';
-        }
-
-        function getIcon(category) {
-            if(!category) return 'ph-receipt';
-            const cat = category.toLowerCase();
-            if(cat.includes('casa') || cat.includes('luz') || cat.includes('internet') || cat.includes('aluguel')) return 'ph-house';
-            if(cat.includes('carro') || cat.includes('uber') || cat.includes('gasolina') || cat.includes('transporte')) return 'ph-car';
-            if(cat.includes('comida') || cat.includes('ifood') || cat.includes('mercado') || cat.includes('restaurante')) return 'ph-hamburger';
-            if(cat.includes('cartao') || cat.includes('nubank') || cat.includes('visa')) return 'ph-credit-card';
-            if(cat.includes('saúde') || cat.includes('farmacia') || cat.includes('medico')) return 'ph-heart-beat';
-            return 'ph-receipt';
-        }
-    </script>
-</body>
-</html>
-
+export default App;
 
