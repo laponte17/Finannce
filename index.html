@@ -1,150 +1,184 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Wallet, PencilSimple, ArrowCircleUp, ArrowCircleDown, House, ShoppingCart, Lightning, Drop, Car, ForkKnife, DotsThreeOutline } from 'phosphor-react';
+import { 
+  Wallet, 
+  FileSpreadsheet, 
+  RefreshCw, 
+  AlertCircle, 
+  PieChart, 
+  Home, 
+  ShoppingBag, 
+  Zap, 
+  CreditCard,
+  MoreHorizontal
+} from 'lucide-react';
 
-const App = () => {
-  const [activeTab, setActiveTab] = useState('wallet');
-  
-  // Estado inicial simulando os dados da imagem
-  // Formato: Nome, Descrição (opcional), Valor, Categoria, Status
-  const [rawData, setRawData] = useState(`Feira, Roça, 650.00, Comida, Pendente
-Energia + Agua, 300.00, Casa, Pendente
-Aluguel, 200.00, Casa, Pendente
-Internet, 100.00, Casa, Pago
-Uber, Trabalho, 25.90, Transporte, Pago`);
+export default function App() {
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [rawData, setRawData] = useState(`Fatura Nubank,260.00,Cartao,Pendente
+Fatura PicPay,220.00,Cartao,Pendente
+Fatura Nubank (M),1000.00,Cartao,Pendente
+Fatura Itaú (M),200.00,Cartao,Pendente
+Empréstimo Nubank,110.80,Emprestimo,Pendente
+Feira Roça,650.00,Comida,Pendente
+Energia + Agua,300.00,Casa,Pendente
+Aluguel,200.00,Casa,Pendente`);
 
-  // Função inteligente para processar as linhas CSV
-  const transactions = useMemo(() => {
-    return rawData.split('\n').filter(line => line.trim().length > 0).map((line, index) => {
-      const parts = line.split(',').map(p => p.trim());
-      
-      // Tenta identificar os campos baseados na posição e conteúdo
-      let title = parts[0] || "Sem Nome";
-      let amount = 0;
-      let category = "Geral";
-      let status = "Pendente";
-      let description = "";
+  const [transactions, setTransactions] = useState([]);
 
-      // Estratégia de parsing simples:
-      // Procura onde está o número (valor)
-      const amountIndex = parts.findIndex(p => !isNaN(parseFloat(p)) && p.trim() !== '');
-      
-      if (amountIndex !== -1) {
-        amount = parseFloat(parts[amountIndex]);
-        // Se houver texto entre o título e o valor, é descrição
-        if (amountIndex > 1) {
-            description = parts.slice(1, amountIndex).join(' ');
+  // Função inteligente para processar os dados colados
+  useEffect(() => {
+    const lines = rawData.split('\n');
+    const parsed = lines
+      .map((line, index) => {
+        if (!line.trim()) return null;
+        
+        // Tenta detectar o separador (Tabulação do Excel ou Vírgula do CSV)
+        let parts;
+        if (line.includes('\t')) {
+          parts = line.split('\t');
+        } else {
+          parts = line.split(',');
         }
-        // O que vem depois do valor geralmente é Categoria e Status
-        if (parts[amountIndex + 1]) category = parts[amountIndex + 1];
-        if (parts[amountIndex + 2]) status = parts[amountIndex + 2];
-      } else {
-        // Fallback se não achar número
-        if (parts[1]) amount = parseFloat(parts[1]) || 0;
-        if (parts[2]) category = parts[2];
-        if (parts[3]) status = parts[3];
-      }
 
-      return { id: index, title, description, amount, category, status };
-    });
+        // Limpa espaços extras
+        parts = parts.map(p => p?.trim());
+
+        // Pula cabeçalhos se existirem
+        if (parts[0]?.toLowerCase() === 'nome' && parts[1]?.toLowerCase() === 'valor') {
+          return null;
+        }
+
+        // Se a linha não tiver pelo menos 2 partes (Nome e Valor), ignora ou tenta recuperar
+        if (parts.length < 2) return null;
+
+        const name = parts[0];
+        // Tenta limpar o valor de símbolos de moeda e converter para float
+        const valueStr = parts[1]?.replace('R$', '').replace('.', '').replace(',', '.').trim(); 
+        // Nota: A lógica acima assume formato brasileiro 1.000,00 se vier formatado, 
+        // ou 1000.00 se vier do CSV simples. Vamos simplificar para o formato do exemplo (260.00)
+        
+        let amount = parseFloat(parts[1]);
+        if (isNaN(amount)) {
+             // Fallback para formatos mais complexos se necessário
+             amount = 0;
+        }
+
+        const category = parts[2] || 'Outros';
+        const status = parts[3] || 'Pendente';
+
+        return {
+          id: index,
+          name,
+          amount,
+          category,
+          status
+        };
+      })
+      .filter(Boolean); // Remove linhas nulas ou inválidas
+
+    setTransactions(parsed);
   }, [rawData]);
 
-  const totalPendente = transactions
-    .filter(t => t.status.toLowerCase().includes('pendente'))
-    .reduce((acc, curr) => acc + curr.amount, 0);
+  const totalPendente = useMemo(() => {
+    return transactions
+      .filter(t => t.status.toLowerCase().includes('pendente'))
+      .reduce((acc, curr) => acc + curr.amount, 0);
+  }, [transactions]);
 
-  const totalGeral = transactions.reduce((acc, curr) => acc + curr.amount, 0);
+  const totalGeral = useMemo(() => {
+    return transactions.reduce((acc, curr) => acc + curr.amount, 0);
+  }, [transactions]);
 
-  const formatCurrency = (value) => {
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+  const formatCurrency = (val) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(val);
   };
 
-  // Helper para ícones baseados na categoria
-  const getIcon = (category) => {
-    const catLower = category.toLowerCase();
-    if (catLower.includes('casa') || catLower.includes('aluguel')) return <House size={24} weight="fill" className="text-blue-500" />;
-    if (catLower.includes('comida') || catLower.includes('feira') || catLower.includes('mercado')) return <ShoppingCart size={24} weight="fill" className="text-orange-500" />;
-    if (catLower.includes('energia') || catLower.includes('luz')) return <Lightning size={24} weight="fill" className="text-yellow-500" />;
-    if (catLower.includes('agua')) return <Drop size={24} weight="fill" className="text-blue-400" />;
-    if (catLower.includes('transporte') || catLower.includes('uber')) return <Car size={24} weight="fill" className="text-gray-500" />;
-    if (catLower.includes('restaurante')) return <ForkKnife size={24} weight="fill" className="text-red-400" />;
-    return <DotsThreeOutline size={24} weight="fill" className="text-gray-400" />;
+  const getCategoryIcon = (cat) => {
+    const c = cat.toLowerCase();
+    if (c.includes('comida') || c.includes('feira')) return <ShoppingBag size={20} className="text-blue-500" />;
+    if (c.includes('casa') || c.includes('energia') || c.includes('aluguel')) return <Home size={20} className="text-blue-500" />;
+    if (c.includes('cartao') || c.includes('fatura')) return <CreditCard size={20} className="text-blue-500" />;
+    if (c.includes('emprestimo')) return <Zap size={20} className="text-blue-500" />;
+    return <MoreHorizontal size={20} className="text-gray-400" />;
   };
 
   return (
-    <div className="bg-gray-50 min-h-screen font-sans text-slate-800 pb-20 selection:bg-blue-100">
+    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans pb-20">
       
-      {/* HEADER */}
-      <div className="px-6 pt-12 pb-4 flex justify-between items-center bg-white sticky top-0 z-10 shadow-sm">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Finanças</h1>
-          <p className="text-sm text-slate-400 font-medium">Atualizado agora</p>
+      {/* Header */}
+      <div className="p-6 pb-2">
+        <div className="flex justify-between items-start">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900">Finanças</h1>
+            <p className="text-slate-400 text-sm mt-1">Atualizado agora</p>
+          </div>
+          <button className="bg-slate-200 p-2 rounded-full text-slate-600 hover:bg-slate-300 transition">
+            <RefreshCw size={20} />
+          </button>
         </div>
-        <button className="bg-slate-100 p-2 rounded-full hover:bg-slate-200 transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-600"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16l5 5v-5"/></svg>
-        </button>
       </div>
 
-      {activeTab === 'wallet' ? (
-        <div className="px-6 space-y-8 animate-in fade-in duration-500">
+      {activeTab === 'dashboard' ? (
+        <div className="p-6 pt-4 space-y-6">
           
-          {/* CARDS RESUMO */}
-          <div className="flex gap-4 mt-4 overflow-x-auto pb-2 snap-x hide-scrollbar">
+          {/* Summary Cards */}
+          <div className="grid grid-cols-2 gap-4">
             {/* Card Pendente */}
-            <div className="snap-center shrink-0 w-[48%] bg-red-500 rounded-2xl p-5 shadow-lg shadow-red-200 text-white relative overflow-hidden group">
-               <div className="absolute -right-4 -top-4 bg-white/10 w-24 h-24 rounded-full blur-xl group-hover:bg-white/20 transition-all"></div>
-               <div className="flex items-center gap-2 mb-6">
-                 <div className="bg-white/20 p-1 rounded-full"><ArrowCircleUp size={16} className="text-white" weight="bold"/></div>
-                 <span className="text-xs font-bold tracking-wider uppercase opacity-90">Pendente</span>
-               </div>
-               <div className="text-2xl font-bold">{formatCurrency(totalPendente)}</div>
+            <div className="bg-red-500 text-white p-4 rounded-3xl shadow-lg shadow-red-200">
+              <div className="flex items-center gap-2 mb-3 opacity-90">
+                <AlertCircle size={16} />
+                <span className="text-xs font-bold tracking-wider">PENDENTE</span>
+              </div>
+              <div className="text-2xl font-bold truncate">
+                {formatCurrency(totalPendente)}
+              </div>
             </div>
 
             {/* Card Total */}
-            <div className="snap-center shrink-0 w-[48%] bg-white rounded-2xl p-5 shadow-sm border border-slate-100 relative overflow-hidden">
-               <div className="flex items-center gap-2 mb-6">
-                 <div className="bg-blue-500/10 p-1 rounded-full"><ArrowCircleDown size={16} className="text-blue-600" weight="bold"/></div>
-                 <span className="text-xs font-bold tracking-wider uppercase text-slate-400">Total</span>
-               </div>
-               <div className="text-2xl font-bold text-slate-800">{formatCurrency(totalGeral)}</div>
+            <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100">
+              <div className="flex items-center gap-2 mb-3 text-slate-400">
+                <PieChart size={16} className="text-blue-500" />
+                <span className="text-xs font-bold tracking-wider">TOTAL</span>
+              </div>
+              <div className="text-2xl font-bold text-slate-800 truncate">
+                {formatCurrency(totalGeral)}
+              </div>
             </div>
           </div>
 
-          {/* LISTA CONTAS */}
+          {/* Transactions List */}
           <div>
-            <div className="flex justify-between items-end mb-4">
-                <h2 className="text-xl font-bold text-slate-800">Suas Contas</h2>
-                <span className="text-xs text-slate-400 font-medium">{transactions.length} Itens</span>
+            <div className="flex justify-between items-baseline mb-4">
+              <h2 className="text-xl font-bold text-slate-800">Suas Contas</h2>
+              <span className="text-slate-400 text-sm">{transactions.length} Itens</span>
             </div>
-            
-            <div className="space-y-4">
-              {transactions.map((item) => (
-                <div key={item.id} className="bg-white p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] border border-slate-50 flex items-center justify-between group active:scale-[0.98] transition-all duration-200">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center border border-slate-100 group-hover:bg-blue-50 group-hover:border-blue-100 transition-colors">
-                      {getIcon(item.category)}
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-slate-800 leading-tight">{item.title}</h3>
-                      <div className="flex items-center gap-2 mt-1">
-                          <span className="text-xs font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md">
-                              {item.category}
-                          </span>
-                          {item.description && (
-                              <span className="text-xs text-slate-300 truncate max-w-[80px]">
-                                  {item.description}
-                              </span>
-                          )}
-                          {item.status.toLowerCase() === 'pendente' && (
-                              <span className="w-1.5 h-1.5 rounded-full bg-red-400"></span>
-                          )}
-                      </div>
-                    </div>
+
+            <div className="space-y-3">
+              {transactions.map((t) => (
+                <div key={t.id} className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex items-center relative overflow-hidden">
+                  {/* Status Indicator Bar */}
+                  <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${t.status.toLowerCase() === 'pendente' ? 'bg-red-500' : 'bg-green-500'}`}></div>
+                  
+                  {/* Icon */}
+                  <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center mr-4 shrink-0">
+                    {getCategoryIcon(t.category)}
                   </div>
-                  <div className="text-right">
-                    <span className="block font-bold text-slate-800">{formatCurrency(item.amount)}</span>
-                    <span className={`text-[10px] font-bold uppercase tracking-wide ${item.status.toLowerCase() === 'pendente' ? 'text-red-500' : 'text-green-500'}`}>
-                        {item.status}
-                    </span>
+
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-slate-800 truncate leading-tight mb-1">{t.name}</h3>
+                    <p className="text-xs text-slate-400 capitalize">{t.category}</p>
+                  </div>
+
+                  {/* Value */}
+                  <div className="text-right ml-4 shrink-0">
+                    <p className="font-bold text-slate-800">{formatCurrency(t.amount)}</p>
+                    {t.status.toLowerCase() === 'pendente' && (
+                       <span className="inline-block mt-1 w-2 h-2 rounded-full bg-red-500"></span>
+                    )}
                   </div>
                 </div>
               ))}
@@ -152,54 +186,44 @@ Uber, Trabalho, 25.90, Transporte, Pago`);
           </div>
         </div>
       ) : (
-        <div className="px-6 h-full flex flex-col animate-in slide-in-from-bottom-4 duration-300">
-            <h2 className="text-xl font-bold text-slate-800 mb-2 mt-4">Editar Dados</h2>
-            <p className="text-sm text-slate-500 mb-4">Edite sua planilha CSV aqui. Formato: Nome, Valor, Categoria, Status</p>
-            <div className="flex-1 mb-24">
-                <textarea 
-                    value={rawData}
-                    onChange={(e) => setRawData(e.target.value)}
-                    className="w-full h-[60vh] p-4 bg-white rounded-2xl border border-slate-200 shadow-sm text-sm font-mono text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-none leading-relaxed"
-                    spellCheck="false"
-                />
-            </div>
+        // Editor Tab
+        <div className="p-6 h-full flex flex-col">
+          <h2 className="text-xl font-bold text-slate-800 mb-4">Editar Dados da Planilha</h2>
+          <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex-1 flex flex-col">
+            <p className="text-sm text-slate-500 mb-2">
+              Cole abaixo suas linhas do Excel ou CSV no formato:<br/>
+              <code className="bg-slate-100 px-1 rounded text-xs">Nome, Valor, Categoria, Status</code>
+            </p>
+            <textarea
+              value={rawData}
+              onChange={(e) => setRawData(e.target.value)}
+              className="flex-1 w-full p-3 text-sm font-mono text-slate-700 bg-slate-50 rounded-xl border-0 focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+              placeholder="Cole aqui..."
+            />
+          </div>
         </div>
       )}
 
-      {/* BOTTOM NAVIGATION */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 px-6 py-4 pb-8 flex justify-around items-center z-50">
+      {/* Bottom Navigation */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 px-6 py-3 flex justify-around items-center z-10 pb-6">
         <button 
-          onClick={() => setActiveTab('wallet')}
-          className={`flex flex-col items-center gap-1 transition-colors ${activeTab === 'wallet' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
+          onClick={() => setActiveTab('dashboard')}
+          className={`flex flex-col items-center gap-1 ${activeTab === 'dashboard' ? 'text-blue-600' : 'text-slate-400'}`}
         >
-          <Wallet size={24} weight={activeTab === 'wallet' ? "fill" : "regular"} />
-          <span className="text-[10px] font-bold">Carteira</span>
-        </button>
-
-        <button 
-            className="bg-blue-600 rounded-full p-4 -mt-8 shadow-lg shadow-blue-300 hover:scale-105 active:scale-95 transition-all text-white border-4 border-gray-50"
-            onClick={() => {
-                // Ação de adicionar rápido (placeholder)
-                const newItem = "Nova Conta, 0.00, Geral, Pendente";
-                setRawData(prev => newItem + "\n" + prev);
-                setActiveTab('editor');
-            }}
-        >
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+          <Wallet size={24} strokeWidth={activeTab === 'dashboard' ? 2.5 : 2} />
+          <span className="text-[10px] font-medium">Carteira</span>
         </button>
 
         <button 
           onClick={() => setActiveTab('editor')}
-          className={`flex flex-col items-center gap-1 transition-colors ${activeTab === 'editor' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
+          className={`flex flex-col items-center gap-1 ${activeTab === 'editor' ? 'text-blue-600' : 'text-slate-400'}`}
         >
-          <PencilSimple size={24} weight={activeTab === 'editor' ? "fill" : "regular"} />
-          <span className="text-[10px] font-bold">Planilha</span>
+          <FileSpreadsheet size={24} strokeWidth={activeTab === 'editor' ? 2.5 : 2} />
+          <span className="text-[10px] font-medium">Editar Planilha</span>
         </button>
       </div>
 
     </div>
   );
-};
-
-export default App;
+}
 
