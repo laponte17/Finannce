@@ -1,215 +1,319 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Controle Financeiro</title>
-<style>
-    /* Estilo Básico para garantir funcionamento */
-    body { font-family: sans-serif; background: #f0f0f5; margin: 0; padding-bottom: 80px; }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Finanças</title>
+
+    <!-- PWA CONFIG -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Finanças">
+    <link rel="apple-touch-icon" href="https://img.icons8.com/ios-filled/180/4a90e2/wallet.png">
     
-    /* Cabeçalho */
-    .topo { background: #fff; padding: 20px; border-bottom: 1px solid #ccc; position: sticky; top: 0; z-index: 10; }
-    h1 { margin: 0; font-size: 24px; color: #000; }
-    .sub { color: #666; font-size: 14px; margin-top: 5px; }
-    
-    /* Cards */
-    .resumo { display: flex; gap: 10px; padding: 15px; overflow-x: auto; }
-    .card { background: #fff; padding: 15px; border-radius: 10px; min-width: 120px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-    .card h3 { margin: 0; font-size: 10px; color: #888; text-transform: uppercase; }
-    .card p { margin: 5px 0 0; font-size: 18px; font-weight: bold; }
-    .vermelho { background: #ff3b30; color: #fff; }
-    .vermelho h3 { color: #ffcccc; }
-    
-    /* Lista */
-    .lista { padding: 0 15px; }
-    .titulo-lista { font-size: 12px; color: #888; font-weight: bold; margin-bottom: 10px; text-transform: uppercase; }
-    .item { background: #fff; padding: 15px; border-radius: 10px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border-left: 5px solid #ccc; }
-    
-    /* Status das Barras */
-    .b-atrasado { border-left-color: #ff3b30; }
-    .b-pago { border-left-color: #34c759; opacity: 0.5; }
-    .b-informal { border-left-color: #af52de; }
-    
-    .nome { font-weight: bold; display: block; }
-    .detalhe { font-size: 12px; color: #666; }
-    .valor { font-weight: bold; text-align: right; }
-    .check { display: inline-block; width: 20px; height: 20px; border: 2px solid #ccc; border-radius: 50%; margin-top: 5px; }
-    .b-pago .check { background: #34c759; border-color: #34c759; }
-    
-    /* Menu */
-    .menu { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid #ccc; display: flex; justify-content: space-around; padding: 10px 0 25px 0; }
-    .btn { background: none; border: none; font-size: 11px; color: #999; display: flex; flex-direction: column; align-items: center; }
-    .btn.ativo { color: #007aff; }
-    .icone { font-size: 20px; margin-bottom: 2px; }
-</style>
+    <!-- TAILWIND & ICONS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #F2F2F7;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+
+        .hide-scroll::-webkit-scrollbar { display: none; }
+        .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Animação do Modal */
+        #modal-overlay { transition: opacity 0.3s ease; }
+        #modal-content { transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1); transform: translateY(100%); }
+        
+        .modal-open #modal-overlay { opacity: 1; pointer-events: auto; }
+        .modal-open #modal-content { transform: translateY(0); }
+        .modal-closed #modal-overlay { opacity: 0; pointer-events: none; }
+        
+        .card-enter { animation: slideIn 0.3s ease-out forwards; }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
 </head>
-<body>
+<body class="flex flex-col h-screen overflow-hidden text-gray-900">
 
-<div class="topo">
-    <h1>Finanças</h1>
-    <div class="sub" id="txt-pendente">Carregando...</div>
-</div>
+    <!-- HEADER -->
+    <header class="fixed top-0 w-full z-40 bg-white/80 backdrop-blur-md border-b border-gray-200/50 pt-[calc(env(safe-area-inset-top)+10px)] pb-2 px-5 transition-all">
+        <div class="flex justify-between items-center mb-2">
+            <div>
+                <h1 class="text-2xl font-bold tracking-tight">Dezembro</h1>
+                <p class="text-xs text-gray-500 font-medium" id="current-date">Hoje</p>
+            </div>
+            <div onclick="resetData()" class="text-xs text-gray-300 p-2 cursor-pointer">Reset</div>
+        </div>
+    </header>
 
-<div class="resumo">
-    <div class="card vermelho" id="card-atrasado" style="display:none">
-        <h3>Atrasado</h3>
-        <p id="val-atrasado">R$ 0</p>
-    </div>
-    <div class="card">
-        <h3>Pago</h3>
-        <p id="val-pago">R$ 0</p>
-    </div>
-    <div class="card">
-        <h3>Total</h3>
-        <p id="val-total">R$ 0</p>
-    </div>
-</div>
+    <!-- ÁREA PRINCIPAL -->
+    <main class="flex-1 overflow-y-auto pt-[100px] pb-32 px-5 hide-scroll w-full">
+        
+        <!-- RESUMO FINANCEIRO -->
+        <div class="flex gap-3 overflow-x-auto hide-scroll pb-4 -mx-5 px-5 snap-x">
+            <!-- Pendente -->
+            <div class="min-w-[150px] bg-red-500 rounded-2xl p-4 text-white shadow-lg shadow-red-500/20 snap-start flex flex-col justify-between h-[100px]">
+                <div class="flex items-center gap-1 opacity-90">
+                    <i class="ph-fill ph-warning-circle"></i> <span class="text-xs font-bold uppercase">Pendente</span>
+                </div>
+                <p class="text-2xl font-bold tracking-tight" id="total-pending">R$ 0,00</p>
+            </div>
+            <!-- Pago -->
+            <div class="min-w-[150px] bg-white rounded-2xl p-4 border border-gray-100 snap-start flex flex-col justify-between h-[100px]">
+                <div class="flex items-center gap-1 text-green-600">
+                    <i class="ph-fill ph-check-circle"></i> <span class="text-xs font-bold uppercase">Pago</span>
+                </div>
+                <p class="text-xl font-bold text-gray-800" id="total-paid">R$ 0,00</p>
+            </div>
+             <!-- Total Geral -->
+             <div class="min-w-[150px] bg-white rounded-2xl p-4 border border-gray-100 snap-start flex flex-col justify-between h-[100px]">
+                <div class="flex items-center gap-1 text-blue-500">
+                    <i class="ph-fill ph-chart-pie-slice"></i> <span class="text-xs font-bold uppercase">Total Mês</span>
+                </div>
+                <p class="text-xl font-bold text-gray-800" id="total-month">R$ 0,00</p>
+            </div>
+        </div>
 
-<div class="lista">
-    <div class="titulo-lista" id="titulo-secao">Prioridades</div>
-    <div id="container-lista"></div>
-</div>
+        <!-- LISTA DE TRANSAÇÕES -->
+        <div class="flex justify-between items-end mt-2 mb-3">
+            <h2 class="text-lg font-bold text-gray-800">Suas Contas</h2>
+            <span class="text-xs font-medium text-gray-400 bg-gray-200 px-2 py-1 rounded-full" id="count-items">0</span>
+        </div>
 
-<div class="menu">
-    <button class="btn ativo" onclick="mudarAba('prioridade')" id="btn-prioridade">
-        <span class="icone">🔥</span>Urgente
+        <div id="transactions-list" class="space-y-3 pb-10">
+            <!-- Os itens serão inseridos aqui via JavaScript -->
+        </div>
+        
+        <!-- Estado Vazio -->
+        <div id="empty-state" class="hidden flex-col items-center justify-center mt-10 opacity-40">
+            <i class="ph-duotone ph-receipt text-6xl mb-2"></i>
+            <p class="text-sm font-medium">Nenhuma conta pendente</p>
+        </div>
+
+    </main>
+
+    <!-- BOTÃO FLUTUANTE (FAB) -->
+    <button onclick="openModal()" class="fixed bottom-8 right-6 w-14 h-14 bg-black text-white rounded-full shadow-2xl flex items-center justify-center active:scale-90 transition z-50">
+        <i class="ph-bold ph-plus text-2xl"></i>
     </button>
-    <button class="btn" onclick="mudarAba('agiotas')" id="btn-agiotas">
-        <span class="icone">🤝</span>Pessoal
-    </button>
-    <button class="btn" onclick="mudarAba('todos')" id="btn-todos">
-        <span class="icone">📋</span>Tudo
-    </button>
-</div>
 
-<script>
-    // Seus dados financeiros
-    var dados = [
-        { id:1, nome:'MP EXPRESS', valor:999.00, cat:'Empréstimos', status:'ATRASADO', tipo:'Juros' },
-        { id:2, nome:'SUPER SIM', valor:560.00, cat:'Empréstimos', status:'ATRASADO', tipo:'Juros' },
-        { id:3, nome:'WANDERLEI', valor:167.50, cat:'Informal', status:'ATRASADO', tipo:'Pessoal' },
-        { id:4, nome:'CABELO', valor:999.00, cat:'Informal', status:'PENDENTE', tipo:'Pessoal' },
-        { id:5, nome:'ZÉ', valor:70.00, cat:'Informal', status:'PENDENTE', tipo:'Pessoal' },
-        { id:6, nome:'HENRIQUE', valor:200.00, cat:'Informal', status:'PENDENTE', tipo:'Pessoal' },
-        { id:7, nome:'MERCADO ALIANÇA', valor:240.00, cat:'Contas', status:'PENDENTE', tipo:'Essencial' },
-        { id:8, nome:'ALUGUEL', valor:200.00, cat:'Contas', status:'PENDENTE', tipo:'Moradia' },
-        { id:9, nome:'ENERGIA + AGUA', valor:300.00, cat:'Contas', status:'PENDENTE', tipo:'Essencial' },
-        { id:10, nome:'MECANICO XRE', valor:300.00, cat:'Contas', status:'PENDENTE', tipo:'Transporte' },
-        { id:11, nome:'FEIRA ROÇA', valor:650.00, cat:'Contas', status:'PENDENTE', tipo:'Alimentação' },
-        { id:12, nome:'MP PARCELA', valor:2227.50, cat:'Empréstimos', status:'PENDENTE', tipo:'Longo' },
-        { id:13, nome:'NUBANK (Emp)', valor:110.80, cat:'Empréstimos', status:'PENDENTE', tipo:'Banco' },
-        { id:14, nome:'NU (Cartão)', valor:260.00, cat:'Cartão', status:'PENDENTE', tipo:'Fatura' },
-        { id:15, nome:'NU - M', valor:1000.00, cat:'Cartão', status:'PENDENTE', tipo:'Fatura' },
-        { id:16, nome:'PICPAY', valor:220.00, cat:'Cartão', status:'PENDENTE', tipo:'Fatura' },
-        { id:17, nome:'OUTORGA', valor:400.00, cat:'Contas', status:'PENDENTE', tipo:'Doc' },
-        { id:18, nome:'DOC 160', valor:398.00, cat:'Contas', status:'PENDENTE', tipo:'Doc' },
-        { id:19, nome:'FACIO', valor:180.50, cat:'Empréstimos', status:'PENDENTE', tipo:'Juros' }
-    ];
+    <!-- MODAL DE ADICIONAR (Estilo iOS Sheet) -->
+    <div id="modal-container" class="modal-closed relative z-50">
+        <!-- Overlay Escuro -->
+        <div id="modal-overlay" class="fixed inset-0 bg-black/40 backdrop-blur-sm" onclick="closeModal()"></div>
+        
+        <!-- Conteúdo do Modal -->
+        <div id="modal-content" class="fixed bottom-0 left-0 right-0 bg-white rounded-t-[32px] p-6 shadow-2xl pb-[calc(env(safe-area-inset-bottom)+20px)]">
+            <div class="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-6"></div>
+            
+            <h3 class="text-xl font-bold mb-5">Nova Conta</h3>
+            
+            <form onsubmit="addTransaction(event)" class="space-y-4">
+                <div>
+                    <label class="text-xs font-bold text-gray-400 uppercase">Nome</label>
+                    <input type="text" id="input-name" placeholder="Ex: Internet, Aluguel..." class="w-full text-lg border-b border-gray-200 py-2 focus:outline-none focus:border-black bg-transparent" required>
+                </div>
 
-    var abaAtual = 'prioridade';
+                <div class="flex gap-4">
+                    <div class="w-1/2">
+                        <label class="text-xs font-bold text-gray-400 uppercase">Valor (R$)</label>
+                        <input type="number" step="0.01" id="input-amount" placeholder="0,00" class="w-full text-lg border-b border-gray-200 py-2 focus:outline-none focus:border-black bg-transparent" inputmode="decimal" required>
+                    </div>
+                    <div class="w-1/2">
+                        <label class="text-xs font-bold text-gray-400 uppercase">Categoria</label>
+                        <select id="input-category" class="w-full text-lg border-b border-gray-200 py-2 focus:outline-none bg-transparent">
+                            <option value="🏠">🏠 Casa</option>
+                            <option value="🚗">🚗 Carro</option>
+                            <option value="🍔">🍔 Comida</option>
+                            <option value="💳">💳 Cartão</option>
+                            <option value="🎉">🎉 Lazer</option>
+                            <option value="🏥">🏥 Saúde</option>
+                            <option value="💸">💸 Outros</option>
+                        </select>
+                    </div>
+                </div>
 
-    // Tentar carregar memória
-    try {
-        var salvo = localStorage.getItem('meu_dinheiro_v4');
-        if(salvo) dados = JSON.parse(salvo);
-    } catch(e) {}
+                <button type="submit" class="w-full bg-black text-white font-bold py-4 rounded-xl mt-4 active:scale-95 transition">
+                    Salvar Conta
+                </button>
+            </form>
+        </div>
+    </div>
 
-    function salvar() {
-        localStorage.setItem('meu_dinheiro_v4', JSON.stringify(dados));
-        renderizar();
-    }
+    <script>
+        // --- LÓGICA DO APP ---
 
-    function clicar(id) {
-        for(var i=0; i<dados.length; i++) {
-            if(dados[i].id === id) {
-                dados[i].status = (dados[i].status === 'PAGO' ? 'PENDENTE' : 'PAGO');
+        // 1. Estado Inicial (Tenta carregar do LocalStorage ou usa exemplo)
+        let transactions = JSON.parse(localStorage.getItem('finances_data')) || [
+            { id: 1, name: 'Exemplo: Aluguel', amount: 1200.00, category: '🏠', paid: false },
+            { id: 2, name: 'Toque no + para criar', amount: 0.00, category: '✨', paid: true }
+        ];
+
+        const listElement = document.getElementById('transactions-list');
+        const emptyState = document.getElementById('empty-state');
+
+        // 2. Função para Salvar
+        function saveToLocal() {
+            localStorage.setItem('finances_data', JSON.stringify(transactions));
+            updateSummary();
+            renderList();
+        }
+
+        // 3. Formata Dinheiro (R$)
+        const formatter = new Intl.NumberFormat('pt-BR', {
+            style: 'currency',
+            currency: 'BRL'
+        });
+
+        // 4. Renderiza a Lista na Tela
+        function renderList() {
+            listElement.innerHTML = '';
+            
+            if (transactions.length === 0) {
+                emptyState.classList.remove('hidden');
+                emptyState.classList.add('flex');
+            } else {
+                emptyState.classList.add('hidden');
+                emptyState.classList.remove('flex');
+            }
+
+            // Ordena: Não pagos primeiro
+            const sortedTransactions = [...transactions].sort((a, b) => a.paid === b.paid ? 0 : a.paid ? 1 : -1);
+
+            sortedTransactions.forEach(item => {
+                const itemDiv = document.createElement('div');
+                
+                // Estilos condicionais (Pago vs Pendente)
+                const statusColor = item.paid ? 'border-gray-200 bg-gray-50 opacity-60' : 'border-red-500 bg-white';
+                const textColor = item.paid ? 'text-gray-400 line-through' : 'text-gray-900';
+                const checkBg = item.paid ? 'bg-green-500 border-green-500' : 'border-gray-300';
+                const checkIconClass = item.paid ? 'opacity-100 scale-100' : 'opacity-0 scale-50';
+
+                itemDiv.className = `p-4 rounded-2xl shadow-sm border-l-[6px] flex justify-between items-center transition-all duration-300 card-enter ${statusColor}`;
+                
+                itemDiv.innerHTML = `
+                    <div class="flex items-center gap-3 overflow-hidden">
+                        <div class="text-2xl">${item.category}</div>
+                        <div class="min-w-0">
+                            <h3 class="font-bold text-lg truncate ${textColor}">${item.name}</h3>
+                            <div onclick="deleteItem(${item.id})" class="text-xs text-red-400 flex items-center gap-1 cursor-pointer mt-1 active:opacity-50 w-max">
+                                <i class="ph-bold ph-trash"></i> Excluir
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex flex-col items-end gap-2 pl-2">
+                        <span class="font-bold text-lg ${textColor}">${formatter.format(item.amount)}</span>
+                        <button onclick="togglePay(${item.id})" class="w-8 h-8 rounded-full border-[2px] ${checkBg} flex items-center justify-center text-white transition-all duration-300 active:scale-90">
+                            <i class="ph-bold ph-check text-sm transition-transform duration-300 ${checkIconClass}"></i>
+                        </button>
+                    </div>
+                `;
+                listElement.appendChild(itemDiv);
+            });
+            
+            document.getElementById('count-items').innerText = transactions.length;
+        }
+
+        // 5. Atualiza os Totais (Cards do Topo)
+        function updateSummary() {
+            const total = transactions.reduce((acc, item) => acc + item.amount, 0);
+            const paid = transactions.filter(item => item.paid).reduce((acc, item) => acc + item.amount, 0);
+            const pending = total - paid;
+
+            document.getElementById('total-month').innerText = formatter.format(total);
+            document.getElementById('total-paid').innerText = formatter.format(paid);
+            document.getElementById('total-pending').innerText = formatter.format(pending);
+        }
+
+        // 6. Adicionar Nova Conta
+        function addTransaction(e) {
+            e.preventDefault();
+            
+            const name = document.getElementById('input-name').value;
+            const amount = parseFloat(document.getElementById('input-amount').value);
+            const category = document.getElementById('input-category').value;
+
+            if (name && amount) {
+                const newTransaction = {
+                    id: Date.now(), // ID único baseado no tempo
+                    name: name,
+                    amount: amount,
+                    category: category,
+                    paid: false
+                };
+
+                transactions.unshift(newTransaction); // Adiciona no começo
+                saveToLocal();
+                closeModal();
+                
+                // Limpa form
+                document.getElementById('input-name').value = '';
+                document.getElementById('input-amount').value = '';
+                
+                // Vibração
+                if (window.navigator && window.navigator.vibrate) window.navigator.vibrate(50);
             }
         }
-        salvar();
-    }
 
-    function mudarAba(novaAba) {
-        abaAtual = novaAba;
-        document.getElementById('btn-prioridade').className = 'btn';
-        document.getElementById('btn-agiotas').className = 'btn';
-        document.getElementById('btn-todos').className = 'btn';
-        document.getElementById('btn-'+novaAba).className = 'btn ativo';
-        renderizar();
-    }
-
-    function formatar(v) {
-        return v.toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
-    }
-
-    function prioridade(item) {
-        if(item.status === 'PAGO') return -999;
-        var p = 0;
-        if(item.status === 'ATRASADO') p += 100;
-        if(item.cat === 'Informal') p += 50;
-        if(item.tipo === 'Essencial' || item.tipo === 'Moradia') p += 40;
-        return p;
-    }
-
-    function renderizar() {
-        var total = 0, pago = 0, atrasado = 0;
-        var listaHTML = '';
-        var listaFiltrada = dados.slice(); // Copiar array
-
-        // Calcular totais
-        for(var i=0; i<dados.length; i++) {
-            total += dados[i].valor;
-            if(dados[i].status === 'PAGO') pago += dados[i].valor;
-            if(dados[i].status === 'ATRASADO') atrasado += dados[i].valor;
+        // 7. Pagar / Despagar
+        function togglePay(id) {
+            const item = transactions.find(t => t.id === id);
+            if (item) {
+                item.paid = !item.paid;
+                saveToLocal();
+                if (window.navigator && window.navigator.vibrate) window.navigator.vibrate(20);
+            }
         }
 
-        // Atualizar topo
-        document.getElementById('txt-pendente').innerText = formatar(total - pago) + ' pendentes';
-        document.getElementById('val-atrasado').innerText = formatar(atrasado);
-        document.getElementById('val-pago').innerText = formatar(pago);
-        document.getElementById('val-total').innerText = formatar(total);
-        document.getElementById('card-atrasado').style.display = atrasado > 0 ? 'block' : 'none';
-
-        // Filtrar e Ordenar
-        if(abaAtual === 'prioridade') {
-            document.getElementById('titulo-secao').innerText = 'Fila de Pagamento';
-            listaFiltrada.sort(function(a,b){ return prioridade(b) - prioridade(a) });
-            listaFiltrada = listaFiltrada.filter(function(i){ return i.status !== 'PAGO' || i.status === 'ATRASADO' });
-        } else if(abaAtual === 'agiotas') {
-            document.getElementById('titulo-secao').innerText = 'Dívidas Pessoais';
-            listaFiltrada = listaFiltrada.filter(function(i){ return i.cat === 'Informal' });
-        } else {
-            document.getElementById('titulo-secao').innerText = 'Lista Completa';
+        // 8. Deletar Item
+        function deleteItem(id) {
+            if(confirm("Deseja excluir esta conta?")) {
+                transactions = transactions.filter(t => t.id !== id);
+                saveToLocal();
+            }
         }
 
-        if(listaFiltrada.length === 0) {
-            document.getElementById('container-lista').innerHTML = '<div style="text-align:center; padding:20px; color:#999;">Nada aqui.</div>';
-            return;
+        // 9. Resetar tudo (Debug)
+        function resetData() {
+            if(confirm("Apagar todos os dados e começar do zero?")) {
+                localStorage.removeItem('finances_data');
+                location.reload();
+            }
         }
 
-        // Gerar HTML
-        for(var i=0; i<listaFiltrada.length; i++) {
-            var item = listaFiltrada[i];
-            var classeBarra = '';
-            var classeItem = 'item';
-            
-            if(item.status === 'PAGO') { classeBarra = 'b-pago'; classeItem += ' b-pago'; }
-            else if(item.status === 'ATRASADO') classeBarra = 'b-atrasado';
-            else if(item.cat === 'Informal') classeBarra = 'b-informal';
-
-            listaHTML += '<div class="' + classeItem + ' ' + classeBarra + '" onclick="clicar(' + item.id + ')">';
-            listaHTML += '<div><span class="nome">' + item.nome + '</span><span class="detalhe">' + item.cat + ' • ' + item.tipo + '</span></div>';
-            listaHTML += '<div><div class="valor">' + formatar(item.valor) + '</div><div class="check"></div></div>';
-            listaHTML += '</div>';
+        // --- CONTROLE DO MODAL ---
+        const modalContainer = document.getElementById('modal-container');
+        
+        function openModal() {
+            modalContainer.classList.remove('modal-closed');
+            modalContainer.classList.add('modal-open');
+            document.getElementById('input-name').focus();
         }
 
-        document.getElementById('container-lista').innerHTML = listaHTML;
-    }
+        function closeModal() {
+            modalContainer.classList.remove('modal-open');
+            modalContainer.classList.add('modal-closed');
+        }
 
-    // Iniciar
-    renderizar();
-</script>
+        // Data Atual
+        const options = { weekday: 'long', day: 'numeric', month: 'long' };
+        document.getElementById('current-date').innerText = new Date().toLocaleDateString('pt-BR', options);
 
+        // Iniciar
+        updateSummary();
+        renderList();
+
+    </script>
 </body>
 </html>
+
 
