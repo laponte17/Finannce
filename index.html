@@ -1,229 +1,282 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  Wallet, 
-  FileSpreadsheet, 
-  RefreshCw, 
-  AlertCircle, 
-  PieChart, 
-  Home, 
-  ShoppingBag, 
-  Zap, 
-  CreditCard,
-  MoreHorizontal
-} from 'lucide-react';
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Finanças App</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    
+    <!-- Babel para traduzir JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-export default function App() {
-  const [activeTab, setActiveTab] = useState('dashboard');
-  const [rawData, setRawData] = useState(`Fatura Nubank,260.00,Cartao,Pendente
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        // --- Componentes de Ícones (SVG Inline para evitar erros de importação) ---
+        const Icon = ({ name, size = 24, className = "" }) => {
+            const icons = {
+                wallet: <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4" stroke="currentColor" strokeWidth="2" fill="none"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5" stroke="currentColor" strokeWidth="2" fill="none"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z" stroke="currentColor" strokeWidth="2" fill="none"/>,
+                spreadsheet: <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" stroke="currentColor" strokeWidth="2" fill="none"/><polyline points="14 2 14 8 20 8" stroke="currentColor" strokeWidth="2" fill="none"/><path d="M8 13h2" stroke="currentColor" strokeWidth="2" fill="none"/><path d="M8 17h2" stroke="currentColor" strokeWidth="2" fill="none"/><path d="M14 13h2" stroke="currentColor" strokeWidth="2" fill="none"/><path d="M14 17h2" stroke="currentColor" strokeWidth="2" fill="none"/>,
+                refresh: <path d="M21 2v6h-6" stroke="currentColor" strokeWidth="2" fill="none"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8" stroke="currentColor" strokeWidth="2" fill="none"/><path d="M3 22v-6h6" stroke="currentColor" strokeWidth="2" fill="none"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16" stroke="currentColor" strokeWidth="2" fill="none"/>,
+                alert: <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" fill="none"/><line x1="12" y1="8" x2="12" y2="12" stroke="currentColor" strokeWidth="2"/><line x1="12" y1="16" x2="12.01" y2="16" stroke="currentColor" strokeWidth="2"/>,
+                piechart: <path d="M21.21 15.89A10 10 0 1 1 8 2.83" stroke="currentColor" strokeWidth="2" fill="none"/><path d="M22 12A10 10 0 0 0 12 2v10z" stroke="currentColor" strokeWidth="2" fill="none"/>,
+                shopping: <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" stroke="currentColor" strokeWidth="2" fill="none"/><line x1="3" y1="6" x2="21" y2="6" stroke="currentColor" strokeWidth="2"/><path d="M16 10a4 4 0 0 1-8 0" stroke="currentColor" strokeWidth="2" fill="none"/>,
+                home: <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" stroke="currentColor" strokeWidth="2" fill="none"/><polyline points="9 22 9 12 15 12 15 22" stroke="currentColor" strokeWidth="2" fill="none"/>,
+                zap: <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" stroke="currentColor" strokeWidth="2" fill="none"/>,
+                creditcard: <rect x="2" y="5" width="20" height="14" rx="2" stroke="currentColor" strokeWidth="2" fill="none"/><line x1="2" y1="10" x2="22" y2="10" stroke="currentColor" strokeWidth="2"/>,
+                more: <circle cx="12" cy="12" r="1" stroke="currentColor" strokeWidth="2"/><circle cx="19" cy="12" r="1" stroke="currentColor" strokeWidth="2"/><circle cx="5" cy="12" r="1" stroke="currentColor" strokeWidth="2"/>
+            };
+
+            return (
+                <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                    {icons[name] || icons.more}
+                </svg>
+            );
+        };
+
+        // --- Aplicação Principal ---
+        function App() {
+            const [activeTab, setActiveTab] = useState('dashboard');
+            // Dados de exemplo iniciais
+            const [rawData, setRawData] = useState(
+`Fatura Nubank,260.00,Cartao,Pendente
 Fatura PicPay,220.00,Cartao,Pendente
 Fatura Nubank (M),1000.00,Cartao,Pendente
 Fatura Itaú (M),200.00,Cartao,Pendente
 Empréstimo Nubank,110.80,Emprestimo,Pendente
 Feira Roça,650.00,Comida,Pendente
 Energia + Agua,300.00,Casa,Pendente
-Aluguel,200.00,Casa,Pendente`);
+Aluguel,200.00,Casa,Pendente`
+            );
 
-  const [transactions, setTransactions] = useState([]);
+            const [transactions, setTransactions] = useState([]);
 
-  // Função inteligente para processar os dados colados
-  useEffect(() => {
-    const lines = rawData.split('\n');
-    const parsed = lines
-      .map((line, index) => {
-        if (!line.trim()) return null;
-        
-        // Tenta detectar o separador (Tabulação do Excel ou Vírgula do CSV)
-        let parts;
-        if (line.includes('\t')) {
-          parts = line.split('\t');
-        } else {
-          parts = line.split(',');
-        }
+            useEffect(() => {
+                const lines = rawData.split('\n');
+                const parsed = lines
+                .map((line, index) => {
+                    if (!line.trim()) return null;
+                    
+                    let parts;
+                    // Detecta se veio do Excel (Tab) ou texto (Vírgula)
+                    if (line.includes('\t')) {
+                        parts = line.split('\t');
+                    } else {
+                        parts = line.split(',');
+                    }
 
-        // Limpa espaços extras
-        parts = parts.map(p => p?.trim());
+                    parts = parts.map(p => p?.trim());
 
-        // Pula cabeçalhos se existirem
-        if (parts[0]?.toLowerCase() === 'nome' && parts[1]?.toLowerCase() === 'valor') {
-          return null;
-        }
+                    // Ignora cabeçalhos
+                    if (parts[0]?.toLowerCase() === 'nome' && parts[1]?.toLowerCase() === 'valor') {
+                        return null;
+                    }
 
-        // Se a linha não tiver pelo menos 2 partes (Nome e Valor), ignora ou tenta recuperar
-        if (parts.length < 2) return null;
+                    if (parts.length < 2) return null;
 
-        const name = parts[0];
-        // Tenta limpar o valor de símbolos de moeda e converter para float
-        const valueStr = parts[1]?.replace('R$', '').replace('.', '').replace(',', '.').trim(); 
-        // Nota: A lógica acima assume formato brasileiro 1.000,00 se vier formatado, 
-        // ou 1000.00 se vier do CSV simples. Vamos simplificar para o formato do exemplo (260.00)
-        
-        let amount = parseFloat(parts[1]);
-        if (isNaN(amount)) {
-             // Fallback para formatos mais complexos se necessário
-             amount = 0;
-        }
+                    const name = parts[0];
+                    let amount = 0;
+                    
+                    // Tratamento simples do valor
+                    try {
+                        let valStr = parts[1];
+                        if(valStr) {
+                             valStr = valStr.replace('R$', '').trim();
+                             // Se tiver vírgula como decimal (ex: 100,50)
+                             if(valStr.includes(',') && !valStr.includes('.')) {
+                                 valStr = valStr.replace(',', '.');
+                             } 
+                             // Se tiver formato brasileiro completo (1.000,00) - simplificado
+                             else if(valStr.includes('.') && valStr.includes(',')) {
+                                 valStr = valStr.replace('.', '').replace(',', '.');
+                             }
+                             amount = parseFloat(valStr);
+                        }
+                    } catch(e) { amount = 0; }
+                    
+                    if (isNaN(amount)) amount = 0;
 
-        const category = parts[2] || 'Outros';
-        const status = parts[3] || 'Pendente';
+                    const category = parts[2] || 'Outros';
+                    const status = parts[3] || 'Pendente';
 
-        return {
-          id: index,
-          name,
-          amount,
-          category,
-          status
-        };
-      })
-      .filter(Boolean); // Remove linhas nulas ou inválidas
+                    return {
+                        id: index,
+                        name,
+                        amount,
+                        category,
+                        status
+                    };
+                })
+                .filter(Boolean);
 
-    setTransactions(parsed);
-  }, [rawData]);
+                setTransactions(parsed);
+            }, [rawData]);
 
-  const totalPendente = useMemo(() => {
-    return transactions
-      .filter(t => t.status.toLowerCase().includes('pendente'))
-      .reduce((acc, curr) => acc + curr.amount, 0);
-  }, [transactions]);
+            const totalPendente = useMemo(() => {
+                return transactions
+                .filter(t => t.status.toLowerCase().includes('pendente'))
+                .reduce((acc, curr) => acc + curr.amount, 0);
+            }, [transactions]);
 
-  const totalGeral = useMemo(() => {
-    return transactions.reduce((acc, curr) => acc + curr.amount, 0);
-  }, [transactions]);
+            const totalGeral = useMemo(() => {
+                return transactions.reduce((acc, curr) => acc + curr.amount, 0);
+            }, [transactions]);
 
-  const formatCurrency = (val) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(val);
-  };
+            const formatCurrency = (val) => {
+                return new Intl.NumberFormat('pt-BR', {
+                    style: 'currency',
+                    currency: 'BRL'
+                }).format(val);
+            };
 
-  const getCategoryIcon = (cat) => {
-    const c = cat.toLowerCase();
-    if (c.includes('comida') || c.includes('feira')) return <ShoppingBag size={20} className="text-blue-500" />;
-    if (c.includes('casa') || c.includes('energia') || c.includes('aluguel')) return <Home size={20} className="text-blue-500" />;
-    if (c.includes('cartao') || c.includes('fatura')) return <CreditCard size={20} className="text-blue-500" />;
-    if (c.includes('emprestimo')) return <Zap size={20} className="text-blue-500" />;
-    return <MoreHorizontal size={20} className="text-gray-400" />;
-  };
+            const getCategoryIcon = (cat) => {
+                const c = cat ? cat.toLowerCase() : '';
+                if (c.includes('comida') || c.includes('feira')) return <Icon name="shopping" size={20} className="text-blue-500" />;
+                if (c.includes('casa') || c.includes('energia') || c.includes('aluguel')) return <Icon name="home" size={20} className="text-blue-500" />;
+                if (c.includes('cartao') || c.includes('fatura')) return <Icon name="creditcard" size={20} className="text-blue-500" />;
+                if (c.includes('emprestimo')) return <Icon name="zap" size={20} className="text-blue-500" />;
+                return <Icon name="more" size={20} className="text-gray-400" />;
+            };
 
-  return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans pb-20">
-      
-      {/* Header */}
-      <div className="p-6 pb-2">
-        <div className="flex justify-between items-start">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900">Finanças</h1>
-            <p className="text-slate-400 text-sm mt-1">Atualizado agora</p>
-          </div>
-          <button className="bg-slate-200 p-2 rounded-full text-slate-600 hover:bg-slate-300 transition">
-            <RefreshCw size={20} />
-          </button>
-        </div>
-      </div>
+            return (
+                <div className="min-h-screen bg-slate-50 text-slate-800 pb-20 max-w-md mx-auto shadow-2xl bg-white min-h-[800px]">
+                
+                    {/* Header */}
+                    <div className="p-6 pb-2">
+                        <div className="flex justify-between items-start">
+                        <div>
+                            <h1 className="text-3xl font-bold text-slate-900">Finanças</h1>
+                            <p className="text-slate-400 text-sm mt-1">Atualizado agora</p>
+                        </div>
+                        <button className="bg-slate-100 p-2 rounded-full text-slate-600 hover:bg-slate-200 transition">
+                            <Icon name="refresh" size={20} />
+                        </button>
+                        </div>
+                    </div>
 
-      {activeTab === 'dashboard' ? (
-        <div className="p-6 pt-4 space-y-6">
-          
-          {/* Summary Cards */}
-          <div className="grid grid-cols-2 gap-4">
-            {/* Card Pendente */}
-            <div className="bg-red-500 text-white p-4 rounded-3xl shadow-lg shadow-red-200">
-              <div className="flex items-center gap-2 mb-3 opacity-90">
-                <AlertCircle size={16} />
-                <span className="text-xs font-bold tracking-wider">PENDENTE</span>
-              </div>
-              <div className="text-2xl font-bold truncate">
-                {formatCurrency(totalPendente)}
-              </div>
-            </div>
+                    {activeTab === 'dashboard' ? (
+                        <div className="p-6 pt-4 space-y-6">
+                        
+                        {/* Summary Cards */}
+                        <div className="grid grid-cols-2 gap-4">
+                            {/* Card Pendente */}
+                            <div className="bg-red-500 text-white p-4 rounded-3xl shadow-lg shadow-red-200">
+                                <div className="flex items-center gap-2 mb-3 opacity-90">
+                                    <Icon name="alert" size={16} />
+                                    <span className="text-xs font-bold tracking-wider">PENDENTE</span>
+                                </div>
+                                <div className="text-2xl font-bold truncate">
+                                    {formatCurrency(totalPendente)}
+                                </div>
+                            </div>
 
-            {/* Card Total */}
-            <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100">
-              <div className="flex items-center gap-2 mb-3 text-slate-400">
-                <PieChart size={16} className="text-blue-500" />
-                <span className="text-xs font-bold tracking-wider">TOTAL</span>
-              </div>
-              <div className="text-2xl font-bold text-slate-800 truncate">
-                {formatCurrency(totalGeral)}
-              </div>
-            </div>
-          </div>
+                            {/* Card Total */}
+                            <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100">
+                                <div className="flex items-center gap-2 mb-3 text-slate-400">
+                                    <Icon name="piechart" size={16} className="text-blue-500" />
+                                    <span className="text-xs font-bold tracking-wider">TOTAL</span>
+                                </div>
+                                <div className="text-2xl font-bold text-slate-800 truncate">
+                                    {formatCurrency(totalGeral)}
+                                </div>
+                            </div>
+                        </div>
 
-          {/* Transactions List */}
-          <div>
-            <div className="flex justify-between items-baseline mb-4">
-              <h2 className="text-xl font-bold text-slate-800">Suas Contas</h2>
-              <span className="text-slate-400 text-sm">{transactions.length} Itens</span>
-            </div>
+                        {/* Transactions List */}
+                        <div>
+                            <div className="flex justify-between items-baseline mb-4">
+                                <h2 className="text-xl font-bold text-slate-800">Suas Contas</h2>
+                                <span className="text-slate-400 text-sm">{transactions.length} Itens</span>
+                            </div>
 
-            <div className="space-y-3">
-              {transactions.map((t) => (
-                <div key={t.id} className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex items-center relative overflow-hidden">
-                  {/* Status Indicator Bar */}
-                  <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${t.status.toLowerCase() === 'pendente' ? 'bg-red-500' : 'bg-green-500'}`}></div>
-                  
-                  {/* Icon */}
-                  <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center mr-4 shrink-0">
-                    {getCategoryIcon(t.category)}
-                  </div>
+                            <div className="space-y-3">
+                            {transactions.map((t) => (
+                                <div key={t.id} className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex items-center relative overflow-hidden">
+                                    {/* Barra de Status */}
+                                    <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${t.status.toLowerCase().includes('pendente') ? 'bg-red-500' : 'bg-green-500'}`}></div>
+                                    
+                                    {/* Ícone */}
+                                    <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center mr-4 shrink-0">
+                                        {getCategoryIcon(t.category)}
+                                    </div>
 
-                  {/* Content */}
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-bold text-slate-800 truncate leading-tight mb-1">{t.name}</h3>
-                    <p className="text-xs text-slate-400 capitalize">{t.category}</p>
-                  </div>
+                                    {/* Conteúdo */}
+                                    <div className="flex-1 min-w-0">
+                                        <h3 className="font-bold text-slate-800 truncate leading-tight mb-1">{t.name}</h3>
+                                        <p className="text-xs text-slate-400 capitalize">{t.category}</p>
+                                    </div>
 
-                  {/* Value */}
-                  <div className="text-right ml-4 shrink-0">
-                    <p className="font-bold text-slate-800">{formatCurrency(t.amount)}</p>
-                    {t.status.toLowerCase() === 'pendente' && (
-                       <span className="inline-block mt-1 w-2 h-2 rounded-full bg-red-500"></span>
+                                    {/* Valor */}
+                                    <div className="text-right ml-4 shrink-0">
+                                        <p className="font-bold text-slate-800">{formatCurrency(t.amount)}</p>
+                                        {t.status.toLowerCase().includes('pendente') && (
+                                            <span className="inline-block mt-1 w-2 h-2 rounded-full bg-red-500"></span>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                            </div>
+                        </div>
+                        </div>
+                    ) : (
+                        // Editor Tab
+                        <div className="p-6 h-full flex flex-col">
+                            <h2 className="text-xl font-bold text-slate-800 mb-4">Editar Dados da Planilha</h2>
+                            <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex-1 flex flex-col min-h-[400px]">
+                                <p className="text-sm text-slate-500 mb-2">
+                                Cole abaixo suas linhas do Excel ou CSV no formato:<br/>
+                                <code className="bg-slate-100 px-1 rounded text-xs text-slate-600">Nome, Valor, Categoria, Status</code>
+                                </p>
+                                <textarea
+                                value={rawData}
+                                onChange={(e) => setRawData(e.target.value)}
+                                className="flex-1 w-full p-3 text-sm font-mono text-slate-700 bg-slate-50 rounded-xl border-0 focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                                placeholder="Cole aqui..."
+                                ></textarea>
+                            </div>
+                        </div>
                     )}
-                  </div>
+
+                    {/* Bottom Navigation */}
+                    <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 px-6 py-3 flex justify-around items-center z-10 pb-6 max-w-md mx-auto">
+                        <button 
+                        onClick={() => setActiveTab('dashboard')}
+                        className={`flex flex-col items-center gap-1 ${activeTab === 'dashboard' ? 'text-blue-600' : 'text-slate-400'}`}
+                        >
+                        <Icon name="wallet" size={24} className={activeTab === 'dashboard' ? "stroke-[2.5]" : "stroke-2"} />
+                        <span className="text-[10px] font-medium">Carteira</span>
+                        </button>
+
+                        <button 
+                        onClick={() => setActiveTab('editor')}
+                        className={`flex flex-col items-center gap-1 ${activeTab === 'editor' ? 'text-blue-600' : 'text-slate-400'}`}
+                        >
+                        <Icon name="spreadsheet" size={24} className={activeTab === 'editor' ? "stroke-[2.5]" : "stroke-2"} />
+                        <span className="text-[10px] font-medium">Editar Planilha</span>
+                        </button>
+                    </div>
+
                 </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      ) : (
-        // Editor Tab
-        <div className="p-6 h-full flex flex-col">
-          <h2 className="text-xl font-bold text-slate-800 mb-4">Editar Dados da Planilha</h2>
-          <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex-1 flex flex-col">
-            <p className="text-sm text-slate-500 mb-2">
-              Cole abaixo suas linhas do Excel ou CSV no formato:<br/>
-              <code className="bg-slate-100 px-1 rounded text-xs">Nome, Valor, Categoria, Status</code>
-            </p>
-            <textarea
-              value={rawData}
-              onChange={(e) => setRawData(e.target.value)}
-              className="flex-1 w-full p-3 text-sm font-mono text-slate-700 bg-slate-50 rounded-xl border-0 focus:ring-2 focus:ring-blue-500 outline-none resize-none"
-              placeholder="Cole aqui..."
-            />
-          </div>
-        </div>
-      )}
+            );
+        }
 
-      {/* Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 px-6 py-3 flex justify-around items-center z-10 pb-6">
-        <button 
-          onClick={() => setActiveTab('dashboard')}
-          className={`flex flex-col items-center gap-1 ${activeTab === 'dashboard' ? 'text-blue-600' : 'text-slate-400'}`}
-        >
-          <Wallet size={24} strokeWidth={activeTab === 'dashboard' ? 2.5 : 2} />
-          <span className="text-[10px] font-medium">Carteira</span>
-        </button>
-
-        <button 
-          onClick={() => setActiveTab('editor')}
-          className={`flex flex-col items-center gap-1 ${activeTab === 'editor' ? 'text-blue-600' : 'text-slate-400'}`}
-        >
-          <FileSpreadsheet size={24} strokeWidth={activeTab === 'editor' ? 2.5 : 2} />
-          <span className="text-[10px] font-medium">Editar Planilha</span>
-        </button>
-      </div>
-
-    </div>
-  );
-}
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
 
