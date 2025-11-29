@@ -5,14 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Finanças</title>
 
-    <!-- PWA CONFIG -->
+    <!-- CONFIGURAÇÕES DE APP IOS (PWA) -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Finanças">
     <link rel="apple-touch-icon" href="https://img.icons8.com/ios-filled/180/4a90e2/wallet.png">
     
-    <!-- TAILWIND & ICONS -->
+    <!-- TAILWIND CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- LEITOR DE CSV (Para ler a planilha) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+    <!-- ICONS (PHOSPHOR) -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
@@ -26,292 +31,360 @@
             padding-top: env(safe-area-inset-top);
             padding-bottom: env(safe-area-inset-bottom);
         }
-
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+        }
+        .ios-card {
+            background: #FFFFFF;
+            border-radius: 16px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);
+        }
+        .check-anim { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        .paid-item { opacity: 0.5; filter: grayscale(1); }
         .hide-scroll::-webkit-scrollbar { display: none; }
         .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
-
-        /* Animação do Modal */
-        #modal-overlay { transition: opacity 0.3s ease; }
-        #modal-content { transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1); transform: translateY(100%); }
         
-        .modal-open #modal-overlay { opacity: 1; pointer-events: auto; }
-        .modal-open #modal-content { transform: translateY(0); }
-        .modal-closed #modal-overlay { opacity: 0; pointer-events: none; }
-        
-        .card-enter { animation: slideIn 0.3s ease-out forwards; }
-        @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        /* Spinner de Carregamento */
+        .loader {
+            border: 3px solid #e5e7eb;
+            border-radius: 50%;
+            border-top: 3px solid #3b82f6;
+            width: 24px;
+            height: 24px;
+            -webkit-animation: spin 1s linear infinite; /* Safari */
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
-<body class="flex flex-col h-screen overflow-hidden text-gray-900">
+<body class="flex flex-col h-screen overflow-hidden">
 
     <!-- HEADER -->
-    <header class="fixed top-0 w-full z-40 bg-white/80 backdrop-blur-md border-b border-gray-200/50 pt-[calc(env(safe-area-inset-top)+10px)] pb-2 px-5 transition-all">
-        <div class="flex justify-between items-center mb-2">
+    <header class="glass-effect fixed top-0 w-full z-50 pt-[calc(env(safe-area-inset-top)+10px)] pb-3 px-5 transition-all duration-300" id="main-header">
+        <div class="flex justify-between items-center">
             <div>
-                <h1 class="text-2xl font-bold tracking-tight">Dezembro</h1>
-                <p class="text-xs text-gray-500 font-medium" id="current-date">Hoje</p>
+                <h1 class="text-[28px] font-bold tracking-tight text-black leading-tight">Finanças</h1>
+                <p id="month-label" class="text-sm text-gray-500 font-medium">Sincronizando...</p>
             </div>
-            <div onclick="resetData()" class="text-xs text-gray-300 p-2 cursor-pointer">Reset</div>
+            <div onclick="reloadData()" class="bg-gray-200/50 p-2 rounded-full cursor-pointer hover:bg-gray-300 transition active:scale-90">
+                <i class="ph-bold ph-arrows-clockwise text-xl text-gray-600"></i>
+            </div>
         </div>
     </header>
 
-    <!-- ÁREA PRINCIPAL -->
-    <main class="flex-1 overflow-y-auto pt-[100px] pb-32 px-5 hide-scroll w-full">
+    <!-- CONTEÚDO -->
+    <main class="flex-1 overflow-y-auto pt-[100px] pb-28 px-5 hide-scroll relative" id="content-area">
         
-        <!-- RESUMO FINANCEIRO -->
-        <div class="flex gap-3 overflow-x-auto hide-scroll pb-4 -mx-5 px-5 snap-x">
-            <!-- Pendente -->
-            <div class="min-w-[150px] bg-red-500 rounded-2xl p-4 text-white shadow-lg shadow-red-500/20 snap-start flex flex-col justify-between h-[100px]">
-                <div class="flex items-center gap-1 opacity-90">
-                    <i class="ph-fill ph-warning-circle"></i> <span class="text-xs font-bold uppercase">Pendente</span>
+        <!-- LOADING STATE -->
+        <div id="loading-screen" class="flex flex-col items-center justify-center py-10 transition-opacity duration-500">
+            <div class="loader mb-4"></div>
+            <p class="text-gray-400 text-sm">Buscando na planilha...</p>
+        </div>
+
+        <div id="app-content" class="hidden opacity-0 transition-opacity duration-500">
+            <!-- RESUMO -->
+            <div class="flex gap-4 overflow-x-auto hide-scroll pb-4 -mx-5 px-5 snap-x">
+                <!-- Pendente -->
+                <div class="min-w-[160px] h-[100px] bg-red-500 rounded-2xl p-4 text-white shadow-lg shadow-red-500/20 flex flex-col justify-between snap-start">
+                    <div class="flex items-center gap-2">
+                        <i class="ph-fill ph-warning-circle text-white/80"></i>
+                        <span class="text-xs font-bold uppercase tracking-wide opacity-90">Pendente</span>
+                    </div>
+                    <p id="total-pending" class="text-2xl font-bold tracking-tight">R$ 0,00</p>
                 </div>
-                <p class="text-2xl font-bold tracking-tight" id="total-pending">R$ 0,00</p>
+                <!-- Total -->
+                <div class="min-w-[150px] h-[100px] bg-white rounded-2xl p-4 border border-gray-100 flex flex-col justify-between shadow-sm snap-start">
+                     <div class="flex items-center gap-2">
+                        <i class="ph-fill ph-chart-pie-slice text-blue-500"></i>
+                        <span class="text-xs font-bold uppercase tracking-wide text-gray-400">Total</span>
+                    </div>
+                    <p id="total-general" class="text-xl font-bold text-gray-800">R$ 0,00</p>
+                </div>
             </div>
-            <!-- Pago -->
-            <div class="min-w-[150px] bg-white rounded-2xl p-4 border border-gray-100 snap-start flex flex-col justify-between h-[100px]">
-                <div class="flex items-center gap-1 text-green-600">
-                    <i class="ph-fill ph-check-circle"></i> <span class="text-xs font-bold uppercase">Pago</span>
-                </div>
-                <p class="text-xl font-bold text-gray-800" id="total-paid">R$ 0,00</p>
+
+            <!-- TÍTULO LISTA -->
+            <div class="flex justify-between items-end mt-4 mb-3">
+                <h2 class="text-lg font-bold text-gray-800">Suas Contas</h2>
+                <span id="items-count" class="text-xs font-medium text-gray-400 bg-gray-100 px-2 py-1 rounded-full">0 Itens</span>
             </div>
-             <!-- Total Geral -->
-             <div class="min-w-[150px] bg-white rounded-2xl p-4 border border-gray-100 snap-start flex flex-col justify-between h-[100px]">
-                <div class="flex items-center gap-1 text-blue-500">
-                    <i class="ph-fill ph-chart-pie-slice"></i> <span class="text-xs font-bold uppercase">Total Mês</span>
-                </div>
-                <p class="text-xl font-bold text-gray-800" id="total-month">R$ 0,00</p>
+
+            <!-- LISTA -->
+            <div class="space-y-3" id="payment-list">
+                <!-- Itens virão aqui -->
+            </div>
+            
+            <div class="h-10 text-center mt-8 opacity-30 pb-safe">
+                <i class="ph-fill ph-check-circle text-4xl text-gray-400"></i>
             </div>
         </div>
 
-        <!-- LISTA DE TRANSAÇÕES -->
-        <div class="flex justify-between items-end mt-2 mb-3">
-            <h2 class="text-lg font-bold text-gray-800">Suas Contas</h2>
-            <span class="text-xs font-medium text-gray-400 bg-gray-200 px-2 py-1 rounded-full" id="count-items">0</span>
-        </div>
-
-        <div id="transactions-list" class="space-y-3 pb-10">
-            <!-- Os itens serão inseridos aqui via JavaScript -->
-        </div>
-        
-        <!-- Estado Vazio -->
-        <div id="empty-state" class="hidden flex-col items-center justify-center mt-10 opacity-40">
-            <i class="ph-duotone ph-receipt text-6xl mb-2"></i>
-            <p class="text-sm font-medium">Nenhuma conta pendente</p>
+        <!-- MENSAGEM DE ERRO (CASO PRIVADO) -->
+        <div id="error-message" class="hidden flex-col items-center justify-center py-10 text-center px-4">
+            <i class="ph-duotone ph-lock-key text-4xl text-red-400 mb-3"></i>
+            <h3 class="font-bold text-gray-800">Acesso Restrito</h3>
+            <p class="text-sm text-gray-500 mt-2">Não consegui ler sua planilha. Verifique se você mudou o compartilhamento para <strong>"Qualquer pessoa com o link"</strong>.</p>
+            <button onclick="window.location.reload()" class="mt-4 bg-blue-500 text-white px-6 py-2 rounded-full font-medium text-sm shadow-lg active:scale-95 transition">Tentar Novamente</button>
         </div>
 
     </main>
 
-    <!-- BOTÃO FLUTUANTE (FAB) -->
-    <button onclick="openModal()" class="fixed bottom-8 right-6 w-14 h-14 bg-black text-white rounded-full shadow-2xl flex items-center justify-center active:scale-90 transition z-50">
-        <i class="ph-bold ph-plus text-2xl"></i>
-    </button>
-
-    <!-- MODAL DE ADICIONAR (Estilo iOS Sheet) -->
-    <div id="modal-container" class="modal-closed relative z-50">
-        <!-- Overlay Escuro -->
-        <div id="modal-overlay" class="fixed inset-0 bg-black/40 backdrop-blur-sm" onclick="closeModal()"></div>
-        
-        <!-- Conteúdo do Modal -->
-        <div id="modal-content" class="fixed bottom-0 left-0 right-0 bg-white rounded-t-[32px] p-6 shadow-2xl pb-[calc(env(safe-area-inset-bottom)+20px)]">
-            <div class="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-6"></div>
-            
-            <h3 class="text-xl font-bold mb-5">Nova Conta</h3>
-            
-            <form onsubmit="addTransaction(event)" class="space-y-4">
-                <div>
-                    <label class="text-xs font-bold text-gray-400 uppercase">Nome</label>
-                    <input type="text" id="input-name" placeholder="Ex: Internet, Aluguel..." class="w-full text-lg border-b border-gray-200 py-2 focus:outline-none focus:border-black bg-transparent" required>
-                </div>
-
-                <div class="flex gap-4">
-                    <div class="w-1/2">
-                        <label class="text-xs font-bold text-gray-400 uppercase">Valor (R$)</label>
-                        <input type="number" step="0.01" id="input-amount" placeholder="0,00" class="w-full text-lg border-b border-gray-200 py-2 focus:outline-none focus:border-black bg-transparent" inputmode="decimal" required>
-                    </div>
-                    <div class="w-1/2">
-                        <label class="text-xs font-bold text-gray-400 uppercase">Categoria</label>
-                        <select id="input-category" class="w-full text-lg border-b border-gray-200 py-2 focus:outline-none bg-transparent">
-                            <option value="🏠">🏠 Casa</option>
-                            <option value="🚗">🚗 Carro</option>
-                            <option value="🍔">🍔 Comida</option>
-                            <option value="💳">💳 Cartão</option>
-                            <option value="🎉">🎉 Lazer</option>
-                            <option value="🏥">🏥 Saúde</option>
-                            <option value="💸">💸 Outros</option>
-                        </select>
-                    </div>
-                </div>
-
-                <button type="submit" class="w-full bg-black text-white font-bold py-4 rounded-xl mt-4 active:scale-95 transition">
-                    Salvar Conta
-                </button>
-            </form>
+    <!-- NAVEGAÇÃO -->
+    <nav class="bg-white/90 backdrop-blur-xl border-t border-gray-200 fixed bottom-0 left-0 right-0 pb-[env(safe-area-inset-bottom)] z-50">
+        <div class="flex justify-around items-center h-16 px-2">
+            <button class="flex flex-col items-center justify-center w-full h-full space-y-1 text-blue-600">
+                <i class="ph-fill ph-wallet text-2xl"></i>
+                <span class="text-[10px] font-semibold">Carteira</span>
+            </button>
+            <button onclick="window.open(SHEET_EDIT_URL, '_blank')" class="flex flex-col items-center justify-center w-full h-full space-y-1 text-gray-400 hover:text-gray-600">
+                <i class="ph-bold ph-pencil-simple text-2xl"></i>
+                <span class="text-[10px] font-medium">Editar Planilha</span>
+            </button>
         </div>
-    </div>
+    </nav>
 
     <script>
-        // --- LÓGICA DO APP ---
+        // ======================================================
+        // SEU LINK JÁ CONFIGURADO AQUI
+        // ======================================================
+        
+        const SHEET_ID = '1MmLntoCyuzTShPjR_qIeDQ6QvPMOI-sE4OPzyGaa5Og';
+        
+        // Link mágico que transforma a planilha em dados legíveis (CSV)
+        const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv`;
+        
+        // Link para quando você clicar em "Editar Planilha"
+        const SHEET_EDIT_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit`;
 
-        // 1. Estado Inicial (Tenta carregar do LocalStorage ou usa exemplo)
-        let transactions = JSON.parse(localStorage.getItem('finances_data')) || [
-            { id: 1, name: 'Exemplo: Aluguel', amount: 1200.00, category: '🏠', paid: false },
-            { id: 2, name: 'Toque no + para criar', amount: 0.00, category: '✨', paid: true }
-        ];
+        // ======================================================
 
-        const listElement = document.getElementById('transactions-list');
-        const emptyState = document.getElementById('empty-state');
+        const listElement = document.getElementById('payment-list');
+        const loadingScreen = document.getElementById('loading-screen');
+        const appContent = document.getElementById('app-content');
+        const errorMessage = document.getElementById('error-message');
+        
+        // Inicia
+        document.addEventListener('DOMContentLoaded', fetchData);
 
-        // 2. Função para Salvar
-        function saveToLocal() {
-            localStorage.setItem('finances_data', JSON.stringify(transactions));
-            updateSummary();
-            renderList();
+        function reloadData() {
+            loadingScreen.classList.remove('hidden');
+            appContent.classList.add('hidden');
+            appContent.classList.remove('opacity-100');
+            errorMessage.classList.add('hidden');
+            fetchData();
         }
 
-        // 3. Formata Dinheiro (R$)
-        const formatter = new Intl.NumberFormat('pt-BR', {
-            style: 'currency',
-            currency: 'BRL'
-        });
-
-        // 4. Renderiza a Lista na Tela
-        function renderList() {
-            listElement.innerHTML = '';
-            
-            if (transactions.length === 0) {
-                emptyState.classList.remove('hidden');
-                emptyState.classList.add('flex');
-            } else {
-                emptyState.classList.add('hidden');
-                emptyState.classList.remove('flex');
-            }
-
-            // Ordena: Não pagos primeiro
-            const sortedTransactions = [...transactions].sort((a, b) => a.paid === b.paid ? 0 : a.paid ? 1 : -1);
-
-            sortedTransactions.forEach(item => {
-                const itemDiv = document.createElement('div');
-                
-                // Estilos condicionais (Pago vs Pendente)
-                const statusColor = item.paid ? 'border-gray-200 bg-gray-50 opacity-60' : 'border-red-500 bg-white';
-                const textColor = item.paid ? 'text-gray-400 line-through' : 'text-gray-900';
-                const checkBg = item.paid ? 'bg-green-500 border-green-500' : 'border-gray-300';
-                const checkIconClass = item.paid ? 'opacity-100 scale-100' : 'opacity-0 scale-50';
-
-                itemDiv.className = `p-4 rounded-2xl shadow-sm border-l-[6px] flex justify-between items-center transition-all duration-300 card-enter ${statusColor}`;
-                
-                itemDiv.innerHTML = `
-                    <div class="flex items-center gap-3 overflow-hidden">
-                        <div class="text-2xl">${item.category}</div>
-                        <div class="min-w-0">
-                            <h3 class="font-bold text-lg truncate ${textColor}">${item.name}</h3>
-                            <div onclick="deleteItem(${item.id})" class="text-xs text-red-400 flex items-center gap-1 cursor-pointer mt-1 active:opacity-50 w-max">
-                                <i class="ph-bold ph-trash"></i> Excluir
-                            </div>
-                        </div>
-                    </div>
-                    <div class="flex flex-col items-end gap-2 pl-2">
-                        <span class="font-bold text-lg ${textColor}">${formatter.format(item.amount)}</span>
-                        <button onclick="togglePay(${item.id})" class="w-8 h-8 rounded-full border-[2px] ${checkBg} flex items-center justify-center text-white transition-all duration-300 active:scale-90">
-                            <i class="ph-bold ph-check text-sm transition-transform duration-300 ${checkIconClass}"></i>
-                        </button>
-                    </div>
-                `;
-                listElement.appendChild(itemDiv);
+        function fetchData() {
+            Papa.parse(SHEET_URL, {
+                download: true,
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    if (results.data && results.data.length > 0) {
+                        processData(results.data);
+                    } else {
+                        showError();
+                    }
+                },
+                error: function(err) {
+                    console.error("Erro:", err);
+                    showError();
+                }
             });
-            
-            document.getElementById('count-items').innerText = transactions.length;
         }
 
-        // 5. Atualiza os Totais (Cards do Topo)
-        function updateSummary() {
-            const total = transactions.reduce((acc, item) => acc + item.amount, 0);
-            const paid = transactions.filter(item => item.paid).reduce((acc, item) => acc + item.amount, 0);
-            const pending = total - paid;
-
-            document.getElementById('total-month').innerText = formatter.format(total);
-            document.getElementById('total-paid').innerText = formatter.format(paid);
-            document.getElementById('total-pending').innerText = formatter.format(pending);
+        function showError() {
+            loadingScreen.classList.add('hidden');
+            errorMessage.classList.remove('hidden');
+            errorMessage.classList.add('flex');
         }
 
-        // 6. Adicionar Nova Conta
-        function addTransaction(e) {
-            e.preventDefault();
-            
-            const name = document.getElementById('input-name').value;
-            const amount = parseFloat(document.getElementById('input-amount').value);
-            const category = document.getElementById('input-category').value;
+        function processData(data) {
+            listElement.innerHTML = '';
+            let total = 0;
+            let pending = 0;
+            let count = 0;
+            let hasData = false;
 
-            if (name && amount) {
-                const newTransaction = {
-                    id: Date.now(), // ID único baseado no tempo
-                    name: name,
-                    amount: amount,
-                    category: category,
-                    paid: false
+            // Recupera status salvo no celular
+            const localStatus = JSON.parse(localStorage.getItem('paymentStatus_v1') || '{}');
+
+            data.forEach((row, index) => {
+                // Tenta encontrar as colunas independente de maiuscula/minuscula
+                const keys = Object.keys(row);
+                const getVal = (keyName) => {
+                    const foundKey = keys.find(k => k.toLowerCase().trim() === keyName.toLowerCase());
+                    return foundKey ? row[foundKey] : '';
                 };
 
-                transactions.unshift(newTransaction); // Adiciona no começo
-                saveToLocal();
-                closeModal();
+                const nome = getVal('Nome');
+                const valorRaw = getVal('Valor');
+                const categoria = getVal('Categoria');
+                const statusPlanilha = getVal('Status');
+
+                if(!nome || !valorRaw) return;
+                hasData = true;
+
+                // Limpeza e conversão do valor monetário
+                // Aceita: "R$ 1.200,50", "1200.50", "1.200,00"
+                let cleanValue = valorRaw.toString();
                 
-                // Limpa form
-                document.getElementById('input-name').value = '';
-                document.getElementById('input-amount').value = '';
+                // Se tiver vírgula e ponto, assume padrão brasileiro (ponto separa milhar, virgula decimal)
+                if(cleanValue.includes(',') && cleanValue.includes('.')) {
+                     cleanValue = cleanValue.replace(/\./g, '').replace(',', '.');
+                } else if(cleanValue.includes(',')) {
+                    // Se só tem vírgula, é decimal
+                     cleanValue = cleanValue.replace(',', '.');
+                }
+                // Remove R$ e espaços
+                cleanValue = cleanValue.replace(/[^0-9.-]/g, '');
                 
-                // Vibração
-                if (window.navigator && window.navigator.vibrate) window.navigator.vibrate(50);
+                let value = parseFloat(cleanValue);
+                if(isNaN(value)) value = 0;
+
+                // Lógica de Pagamento
+                const uniqueId = `${index}-${nome.replace(/\s/g, '')}`;
+                const isPaidLocally = localStatus[uniqueId];
+                
+                // Se status local existe, usa ele. Se não, usa planilha.
+                let isPaid = isPaidLocally !== undefined ? isPaidLocally : (statusPlanilha && statusPlanilha.toLowerCase().includes('pago'));
+
+                // Atualiza Totais
+                total += value;
+                if(!isPaid) pending += value;
+                count++;
+
+                // Cria o Card
+                const card = createCard(nome, categoria, value, isPaid, uniqueId);
+
+                // Ordenação: Pendentes no topo, Pagos no fundo
+                if(isPaid) listElement.appendChild(card);
+                else listElement.prepend(card);
+            });
+
+            if (!hasData) {
+                listElement.innerHTML = `<div class="text-center text-gray-400 py-10">Sua planilha parece vazia.<br>Adicione colunas: Nome, Valor, Categoria</div>`;
             }
+
+            // Atualiza UI
+            updateHeaderUI(pending, total, count);
+            
+            // Transição suave
+            loadingScreen.classList.add('hidden');
+            appContent.classList.remove('hidden');
+            // Timeout pequeno para permitir renderização antes da opacidade
+            setTimeout(() => {
+                appContent.classList.remove('opacity-0');
+                appContent.classList.add('opacity-100');
+            }, 50);
         }
 
-        // 7. Pagar / Despagar
-        function togglePay(id) {
-            const item = transactions.find(t => t.id === id);
-            if (item) {
-                item.paid = !item.paid;
-                saveToLocal();
-                if (window.navigator && window.navigator.vibrate) window.navigator.vibrate(20);
+        function createCard(nome, categoria, value, isPaid, id) {
+            const card = document.createElement('div');
+            card.className = `ios-card p-4 flex items-center justify-between active:scale-[0.98] transition-transform duration-200 border-l-[6px] ${isPaid ? 'border-gray-200 paid-item' : 'border-red-500'} bill-item`;
+            card.setAttribute('data-id', id);
+            card.setAttribute('data-value', value);
+
+            card.innerHTML = `
+                <div class="flex items-center gap-4">
+                    <div class="w-10 h-10 rounded-full ${isPaid ? 'bg-gray-100 text-gray-400' : 'bg-blue-50 text-blue-500'} flex items-center justify-center transition-colors duration-300 icon-box">
+                        <i class="ph-fill ${getIcon(categoria)} text-xl"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-gray-900 leading-tight">${nome}</h3>
+                        <p class="text-xs text-gray-400 mt-0.5">${categoria || 'Despesa'}</p>
+                    </div>
+                </div>
+                <div class="flex flex-col items-end gap-1">
+                    <span class="font-bold text-gray-900">R$ ${value.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+                    <button onclick="togglePay('${id}', this)" class="w-8 h-8 rounded-full border-[2px] ${isPaid ? 'bg-green-500 border-green-500' : 'border-gray-300'} flex items-center justify-center text-white transition-all duration-300 btn-check">
+                        <i class="ph-bold ph-check text-sm ${isPaid ? 'opacity-100 scale-100' : 'opacity-0 scale-50'} transition-all duration-300 icon-check"></i>
+                    </button>
+                </div>
+            `;
+            return card;
+        }
+
+        function togglePay(id, btn) {
+            const card = btn.closest('.bill-item');
+            const iconCheck = btn.querySelector('.icon-check');
+            const iconBox = card.querySelector('.icon-box');
+            const isPaying = !btn.classList.contains('bg-green-500');
+
+            if (window.navigator && window.navigator.vibrate) window.navigator.vibrate(15);
+
+            // Salva Localmente
+            const localStatus = JSON.parse(localStorage.getItem('paymentStatus_v1') || '{}');
+            localStatus[id] = isPaying;
+            localStorage.setItem('paymentStatus_v1', JSON.stringify(localStatus));
+
+            // Atualiza Visual
+            if(isPaying) {
+                // Pagando
+                btn.classList.remove('border-gray-300');
+                btn.classList.add('bg-green-500', 'border-green-500');
+                
+                iconCheck.classList.remove('opacity-0', 'scale-50');
+                iconCheck.classList.add('opacity-100', 'scale-100');
+                
+                card.classList.add('paid-item', 'border-gray-200');
+                card.classList.remove('border-red-500');
+
+                iconBox.classList.remove('bg-blue-50', 'text-blue-500');
+                iconBox.classList.add('bg-gray-100', 'text-gray-400');
+                
+                listElement.appendChild(card); // Move para o fim
+            } else {
+                // Desfazendo
+                btn.classList.add('border-gray-300');
+                btn.classList.remove('bg-green-500', 'border-green-500');
+                
+                iconCheck.classList.add('opacity-0', 'scale-50');
+                iconCheck.classList.remove('opacity-100', 'scale-100');
+                
+                card.classList.remove('paid-item', 'border-gray-200');
+                card.classList.add('border-red-500');
+
+                iconBox.classList.add('bg-blue-50', 'text-blue-500');
+                iconBox.classList.remove('bg-gray-100', 'text-gray-400');
+
+                listElement.prepend(card); // Move para o topo
             }
+
+            recalcTotals();
         }
 
-        // 8. Deletar Item
-        function deleteItem(id) {
-            if(confirm("Deseja excluir esta conta?")) {
-                transactions = transactions.filter(t => t.id !== id);
-                saveToLocal();
-            }
+        function recalcTotals() {
+            let pending = 0;
+            document.querySelectorAll('.bill-item').forEach(card => {
+                if(!card.classList.contains('paid-item')) {
+                    pending += parseFloat(card.getAttribute('data-value'));
+                }
+            });
+            // Animação simples do número
+            const el = document.getElementById('total-pending');
+            el.innerText = `R$ ${pending.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
         }
 
-        // 9. Resetar tudo (Debug)
-        function resetData() {
-            if(confirm("Apagar todos os dados e começar do zero?")) {
-                localStorage.removeItem('finances_data');
-                location.reload();
-            }
+        function updateHeaderUI(pending, total, count) {
+            document.getElementById('total-pending').innerText = `R$ ${pending.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+            document.getElementById('total-general').innerText = `R$ ${total.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+            document.getElementById('items-count').innerText = `${count} Itens`;
+            document.getElementById('month-label').innerText = 'Atualizado agora';
         }
 
-        // --- CONTROLE DO MODAL ---
-        const modalContainer = document.getElementById('modal-container');
-        
-        function openModal() {
-            modalContainer.classList.remove('modal-closed');
-            modalContainer.classList.add('modal-open');
-            document.getElementById('input-name').focus();
+        function getIcon(category) {
+            if(!category) return 'ph-receipt';
+            const cat = category.toLowerCase();
+            if(cat.includes('casa') || cat.includes('luz') || cat.includes('internet') || cat.includes('aluguel')) return 'ph-house';
+            if(cat.includes('carro') || cat.includes('uber') || cat.includes('gasolina') || cat.includes('transporte')) return 'ph-car';
+            if(cat.includes('comida') || cat.includes('ifood') || cat.includes('mercado') || cat.includes('restaurante')) return 'ph-hamburger';
+            if(cat.includes('cartao') || cat.includes('nubank') || cat.includes('visa')) return 'ph-credit-card';
+            if(cat.includes('saúde') || cat.includes('farmacia') || cat.includes('medico')) return 'ph-heart-beat';
+            return 'ph-receipt';
         }
-
-        function closeModal() {
-            modalContainer.classList.remove('modal-open');
-            modalContainer.classList.add('modal-closed');
-        }
-
-        // Data Atual
-        const options = { weekday: 'long', day: 'numeric', month: 'long' };
-        document.getElementById('current-date').innerText = new Date().toLocaleDateString('pt-BR', options);
-
-        // Iniciar
-        updateSummary();
-        renderList();
-
     </script>
 </body>
 </html>
