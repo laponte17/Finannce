@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Controle Financeiro</title>
+<style>
+    /* Estilo Básico para garantir funcionamento */
+    body { font-family: sans-serif; background: #f0f0f5; margin: 0; padding-bottom: 80px; }
+    
+    /* Cabeçalho */
+    .topo { background: #fff; padding: 20px; border-bottom: 1px solid #ccc; position: sticky; top: 0; z-index: 10; }
+    h1 { margin: 0; font-size: 24px; color: #000; }
+    .sub { color: #666; font-size: 14px; margin-top: 5px; }
+    
+    /* Cards */
+    .resumo { display: flex; gap: 10px; padding: 15px; overflow-x: auto; }
+    .card { background: #fff; padding: 15px; border-radius: 10px; min-width: 120px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .card h3 { margin: 0; font-size: 10px; color: #888; text-transform: uppercase; }
+    .card p { margin: 5px 0 0; font-size: 18px; font-weight: bold; }
+    .vermelho { background: #ff3b30; color: #fff; }
+    .vermelho h3 { color: #ffcccc; }
+    
+    /* Lista */
+    .lista { padding: 0 15px; }
+    .titulo-lista { font-size: 12px; color: #888; font-weight: bold; margin-bottom: 10px; text-transform: uppercase; }
+    .item { background: #fff; padding: 15px; border-radius: 10px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border-left: 5px solid #ccc; }
+    
+    /* Status das Barras */
+    .b-atrasado { border-left-color: #ff3b30; }
+    .b-pago { border-left-color: #34c759; opacity: 0.5; }
+    .b-informal { border-left-color: #af52de; }
+    
+    .nome { font-weight: bold; display: block; }
+    .detalhe { font-size: 12px; color: #666; }
+    .valor { font-weight: bold; text-align: right; }
+    .check { display: inline-block; width: 20px; height: 20px; border: 2px solid #ccc; border-radius: 50%; margin-top: 5px; }
+    .b-pago .check { background: #34c759; border-color: #34c759; }
+    
+    /* Menu */
+    .menu { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid #ccc; display: flex; justify-content: space-around; padding: 10px 0 25px 0; }
+    .btn { background: none; border: none; font-size: 11px; color: #999; display: flex; flex-direction: column; align-items: center; }
+    .btn.ativo { color: #007aff; }
+    .icone { font-size: 20px; margin-bottom: 2px; }
+</style>
+</head>
+<body>
+
+<div class="topo">
+    <h1>Finanças</h1>
+    <div class="sub" id="txt-pendente">Carregando...</div>
+</div>
+
+<div class="resumo">
+    <div class="card vermelho" id="card-atrasado" style="display:none">
+        <h3>Atrasado</h3>
+        <p id="val-atrasado">R$ 0</p>
+    </div>
+    <div class="card">
+        <h3>Pago</h3>
+        <p id="val-pago">R$ 0</p>
+    </div>
+    <div class="card">
+        <h3>Total</h3>
+        <p id="val-total">R$ 0</p>
+    </div>
+</div>
+
+<div class="lista">
+    <div class="titulo-lista" id="titulo-secao">Prioridades</div>
+    <div id="container-lista"></div>
+</div>
+
+<div class="menu">
+    <button class="btn ativo" onclick="mudarAba('prioridade')" id="btn-prioridade">
+        <span class="icone">🔥</span>Urgente
+    </button>
+    <button class="btn" onclick="mudarAba('agiotas')" id="btn-agiotas">
+        <span class="icone">🤝</span>Pessoal
+    </button>
+    <button class="btn" onclick="mudarAba('todos')" id="btn-todos">
+        <span class="icone">📋</span>Tudo
+    </button>
+</div>
+
+<script>
+    // Seus dados financeiros
+    var dados = [
+        { id:1, nome:'MP EXPRESS', valor:999.00, cat:'Empréstimos', status:'ATRASADO', tipo:'Juros' },
+        { id:2, nome:'SUPER SIM', valor:560.00, cat:'Empréstimos', status:'ATRASADO', tipo:'Juros' },
+        { id:3, nome:'WANDERLEI', valor:167.50, cat:'Informal', status:'ATRASADO', tipo:'Pessoal' },
+        { id:4, nome:'CABELO', valor:999.00, cat:'Informal', status:'PENDENTE', tipo:'Pessoal' },
+        { id:5, nome:'ZÉ', valor:70.00, cat:'Informal', status:'PENDENTE', tipo:'Pessoal' },
+        { id:6, nome:'HENRIQUE', valor:200.00, cat:'Informal', status:'PENDENTE', tipo:'Pessoal' },
+        { id:7, nome:'MERCADO ALIANÇA', valor:240.00, cat:'Contas', status:'PENDENTE', tipo:'Essencial' },
+        { id:8, nome:'ALUGUEL', valor:200.00, cat:'Contas', status:'PENDENTE', tipo:'Moradia' },
+        { id:9, nome:'ENERGIA + AGUA', valor:300.00, cat:'Contas', status:'PENDENTE', tipo:'Essencial' },
+        { id:10, nome:'MECANICO XRE', valor:300.00, cat:'Contas', status:'PENDENTE', tipo:'Transporte' },
+        { id:11, nome:'FEIRA ROÇA', valor:650.00, cat:'Contas', status:'PENDENTE', tipo:'Alimentação' },
+        { id:12, nome:'MP PARCELA', valor:2227.50, cat:'Empréstimos', status:'PENDENTE', tipo:'Longo' },
+        { id:13, nome:'NUBANK (Emp)', valor:110.80, cat:'Empréstimos', status:'PENDENTE', tipo:'Banco' },
+        { id:14, nome:'NU (Cartão)', valor:260.00, cat:'Cartão', status:'PENDENTE', tipo:'Fatura' },
+        { id:15, nome:'NU - M', valor:1000.00, cat:'Cartão', status:'PENDENTE', tipo:'Fatura' },
+        { id:16, nome:'PICPAY', valor:220.00, cat:'Cartão', status:'PENDENTE', tipo:'Fatura' },
+        { id:17, nome:'OUTORGA', valor:400.00, cat:'Contas', status:'PENDENTE', tipo:'Doc' },
+        { id:18, nome:'DOC 160', valor:398.00, cat:'Contas', status:'PENDENTE', tipo:'Doc' },
+        { id:19, nome:'FACIO', valor:180.50, cat:'Empréstimos', status:'PENDENTE', tipo:'Juros' }
+    ];
+
+    var abaAtual = 'prioridade';
+
+    // Tentar carregar memória
+    try {
+        var salvo = localStorage.getItem('meu_dinheiro_v4');
+        if(salvo) dados = JSON.parse(salvo);
+    } catch(e) {}
+
+    function salvar() {
+        localStorage.setItem('meu_dinheiro_v4', JSON.stringify(dados));
+        renderizar();
+    }
+
+    function clicar(id) {
+        for(var i=0; i<dados.length; i++) {
+            if(dados[i].id === id) {
+                dados[i].status = (dados[i].status === 'PAGO' ? 'PENDENTE' : 'PAGO');
+            }
+        }
+        salvar();
+    }
+
+    function mudarAba(novaAba) {
+        abaAtual = novaAba;
+        document.getElementById('btn-prioridade').className = 'btn';
+        document.getElementById('btn-agiotas').className = 'btn';
+        document.getElementById('btn-todos').className = 'btn';
+        document.getElementById('btn-'+novaAba).className = 'btn ativo';
+        renderizar();
+    }
+
+    function formatar(v) {
+        return v.toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
+    }
+
+    function prioridade(item) {
+        if(item.status === 'PAGO') return -999;
+        var p = 0;
+        if(item.status === 'ATRASADO') p += 100;
+        if(item.cat === 'Informal') p += 50;
+        if(item.tipo === 'Essencial' || item.tipo === 'Moradia') p += 40;
+        return p;
+    }
+
+    function renderizar() {
+        var total = 0, pago = 0, atrasado = 0;
+        var listaHTML = '';
+        var listaFiltrada = dados.slice(); // Copiar array
+
+        // Calcular totais
+        for(var i=0; i<dados.length; i++) {
+            total += dados[i].valor;
+            if(dados[i].status === 'PAGO') pago += dados[i].valor;
+            if(dados[i].status === 'ATRASADO') atrasado += dados[i].valor;
+        }
+
+        // Atualizar topo
+        document.getElementById('txt-pendente').innerText = formatar(total - pago) + ' pendentes';
+        document.getElementById('val-atrasado').innerText = formatar(atrasado);
+        document.getElementById('val-pago').innerText = formatar(pago);
+        document.getElementById('val-total').innerText = formatar(total);
+        document.getElementById('card-atrasado').style.display = atrasado > 0 ? 'block' : 'none';
+
+        // Filtrar e Ordenar
+        if(abaAtual === 'prioridade') {
+            document.getElementById('titulo-secao').innerText = 'Fila de Pagamento';
+            listaFiltrada.sort(function(a,b){ return prioridade(b) - prioridade(a) });
+            listaFiltrada = listaFiltrada.filter(function(i){ return i.status !== 'PAGO' || i.status === 'ATRASADO' });
+        } else if(abaAtual === 'agiotas') {
+            document.getElementById('titulo-secao').innerText = 'Dívidas Pessoais';
+            listaFiltrada = listaFiltrada.filter(function(i){ return i.cat === 'Informal' });
+        } else {
+            document.getElementById('titulo-secao').innerText = 'Lista Completa';
+        }
+
+        if(listaFiltrada.length === 0) {
+            document.getElementById('container-lista').innerHTML = '<div style="text-align:center; padding:20px; color:#999;">Nada aqui.</div>';
+            return;
+        }
+
+        // Gerar HTML
+        for(var i=0; i<listaFiltrada.length; i++) {
+            var item = listaFiltrada[i];
+            var classeBarra = '';
+            var classeItem = 'item';
+            
+            if(item.status === 'PAGO') { classeBarra = 'b-pago'; classeItem += ' b-pago'; }
+            else if(item.status === 'ATRASADO') classeBarra = 'b-atrasado';
+            else if(item.cat === 'Informal') classeBarra = 'b-informal';
+
+            listaHTML += '<div class="' + classeItem + ' ' + classeBarra + '" onclick="clicar(' + item.id + ')">';
+            listaHTML += '<div><span class="nome">' + item.nome + '</span><span class="detalhe">' + item.cat + ' • ' + item.tipo + '</span></div>';
+            listaHTML += '<div><div class="valor">' + formatar(item.valor) + '</div><div class="check"></div></div>';
+            listaHTML += '</div>';
+        }
+
+        document.getElementById('container-lista').innerHTML = listaHTML;
+    }
+
+    // Iniciar
+    renderizar();
+</script>
+
+</body>
+</html>
+
